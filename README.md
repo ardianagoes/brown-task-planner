@@ -49,11 +49,17 @@ Copy-Item .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Your project's publishable key |
 | `NEXT_PUBLIC_APP_URL` | Exact public origin: local HTTP for development, HTTPS in production |
 | `ICS_ALLOWED_HOSTS` | Optional comma-separated exact school/exporter hostnames |
-| `TZ` | Timezone for floating ICS timestamps, e.g. `America/New_York` |
+| `APP_TIMEZONE` | Timezone for floating ICS timestamps; defaults to `America/New_York` |
 
 This application requires no service-role key or database password. Public variables
 are compiled into the browser bundle; changing them requires a new production build.
 Keep `.env.local` out of source control and archives.
+
+Set `APP_TIMEZONE=America/New_York` locally and in Vercel. Vercel reserves `TZ`,
+so remove that old environment entry from your deployment settings. At Node server
+startup, `instrumentation.ts` applies `APP_TIMEZONE` to the runtime timezone used by
+the existing ICS parser. Restart the server after changing it. If the setting is
+missing or empty, the runtime uses `America/New_York`.
 
 Auth implementation follows the [Supabase SSR guide](https://supabase.com/docs/guides/auth/server-side/creating-a-client?queryGroups=framework&framework=nextjs).
 See [redirect configuration](https://supabase.com/docs/guides/auth/redirect-urls) and
@@ -125,6 +131,7 @@ lib/
   feed-fetch.ts               restricted HTTPS downloader
   ics.ts                      ICS parsing and stable task IDs
 proxy.ts                      cookie refresh and private cache headers
+instrumentation.ts            server timezone initialization
 supabase/migrations/           authoritative production SQL
 supabase/schema.sql            pointer to the migration (executes no SQL)
 tests/                        core, request and PostgreSQL/RLS tests
@@ -176,7 +183,7 @@ provided by your institution or exporter; a course page URL does not work.
 - Private subscription URLs are sent in the request body and are not retained in
   task storage or logged by this application. Ensure any hosting request-body
   logging you configure also excludes this endpoint.
-- Timed events respect UTC/TZID. Floating timestamps use server `TZ`. Manual entry
+- Timed events respect UTC/TZID. Floating timestamps use server `APP_TIMEZONE`. Manual entry
   uses the browser timezone and rejects nonexistent spring-DST local times.
 - All-day items retain their date and show time unspecified. Urgency uses local
   end-of-day; check the assignment page for an official submission time.

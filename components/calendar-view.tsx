@@ -1,13 +1,15 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { CATEGORY_STYLE, deadlineMillis, localDay, taskDay, urgency, type Status, type Task } from "@/lib/tasks";
 import CalendarDayDetails from "./calendar-day-details";
 
-export default function CalendarView({ tasks, now, onStatusChange, disabled = false }: {
+export default function CalendarView({ tasks, now, onStatusChange, onDeleteTask, disabled = false }: {
   tasks: Task[]; now: number; onStatusChange: (id: string, status: Status) => void; disabled?: boolean;
+  onDeleteTask: (id: string) => Promise<void>;
 }) {
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selected, setSelected] = useState<{ day: string; taskId?: string } | null>(null);
+  const calendarContainer = useRef<HTMLDivElement>(null);
   const byDay = useMemo(() => {
     const grouped = new Map<string, Task[]>();
     for (const task of tasks) {
@@ -31,7 +33,7 @@ export default function CalendarView({ tasks, now, onStatusChange, disabled = fa
       </div>
     </div>
     <p className="mb-4 text-xs text-slate-400">All statuses are shown. Open a day to see full details. Red dots flag urgent deadlines.</p>
-    <div className="overflow-x-auto pb-2" tabIndex={0} aria-label="Monthly calendar; scroll horizontally on smaller screens">
+    <div ref={calendarContainer} className="overflow-x-auto pb-2" tabIndex={0} aria-label="Monthly calendar; scroll horizontally on smaller screens">
       <div className="grid min-w-[600px] grid-cols-7 gap-px overflow-hidden rounded-xl border border-slate-800 bg-slate-800">
         {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => <div key={day} className="bg-slate-900 p-2 text-center text-xs font-medium text-slate-400">{day}</div>)}
         {days.map(day => {
@@ -64,6 +66,7 @@ export default function CalendarView({ tasks, now, onStatusChange, disabled = fa
       </div>
     </div>
     {selected && <CalendarDayDetails day={selected.day} initialTaskId={selected.taskId} tasks={byDay.get(selected.day) || []}
-      now={now} disabled={disabled} onStatusChange={onStatusChange} onClose={() => setSelected(null)} />}
+      now={now} disabled={disabled} onStatusChange={onStatusChange} onDeleteTask={onDeleteTask}
+      onClose={() => { setSelected(null); calendarContainer.current?.focus(); }} />}
   </div>;
 }

@@ -73,6 +73,25 @@ test("RLS restricts authenticated reads, inserts, updates and deletes to their o
   });
 });
 
+test("deleting a task preserves other records and the same ID in another account; retries are safe", async () => {
+  await asUser(alice, () => importTasks([task("delete-shared", { status: "Submitted/Done" }), task("delete-survivor", { source: "Manual" })]));
+  await asUser(bob, () => importTasks([task("delete-shared")]));
+  await asUser(alice, async () => {
+    const removed = await db.query("delete from public.tasks where user_id=$1 and id=$2 returning id", [alice, "delete-shared"]);
+    assert.deepEqual(removed.rows, [{ id: "delete-shared" }]);
+    const retry = await db.query("delete from public.tasks where user_id=$1 and id=$2 returning id", [alice, "delete-shared"]);
+    assert.equal(retry.rows.length, 0);
+    const survivor = await db.query("select id from public.tasks where id='delete-survivor'");
+    assert.equal(survivor.rows.length, 1);
+  });
+  await asUser(bob, async () => {
+    assert.equal((await db.query("select id from public.tasks where id='delete-shared'")).rows.length, 1);
+    const foreign = await db.query("delete from public.tasks where user_id=$1 and id='delete-survivor' returning id", [alice]);
+    assert.equal(foreign.rows.length, 0);
+  });
+  assert.equal((await asUser(alice, () => db.query("select id from public.tasks where id='delete-survivor'"))).rows.length, 1);
+});
+
 test("anonymous users cannot CRUD tasks or call privileged task functions", async () => {
   await asUser(null, async () => {
     for (const query of ["select * from public.tasks", "insert into public.tasks(id) values('anon')", "update public.tasks set name='Bad'", "delete from public.tasks",

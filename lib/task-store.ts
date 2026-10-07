@@ -33,3 +33,15 @@ export async function listTasks(supabase: SupabaseClient<Database>, userId: stri
   }
   return tasks;
 }
+
+export async function listTaskIds(supabase: SupabaseClient<Database>, userId: string): Promise<Set<string>> {
+  const ids = new Set<string>();
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await supabase.from("tasks").select("id").eq("user_id", userId)
+      .order("id").range(offset, offset + 499);
+    databaseError(error);
+    const rows = data || [];
+    rows.forEach(row => ids.add(row.id));
+    if (rows.length < 500) return ids;
+  }
+}

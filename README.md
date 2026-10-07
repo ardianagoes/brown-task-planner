@@ -2,13 +2,15 @@
 
 A Next.js App Router application with Supabase Auth and private Postgres task storage.
 The dashboard supports manual tasks, list/monthly calendar views, status tracking,
-category colors, deadline sorting, category filters, hide-done, and 48-hour urgency.
+category colors, deadline sorting, category filters, Active/Completed list tabs,
+compact calendar day details, and 48-hour urgency. All screens use a dark theme.
 Canvas/Gradescope ICS feeds are downloaded and parsed by an authenticated Node route.
 
 ## Finish setup
 
-The configured Supabase project is reachable. At the last hosted check, its `tasks`
-table was absent. Applying SQL and configuring Auth URLs are project-owner steps.
+The production SQL migration has already been applied to the configured project.
+This dashboard refresh requires no SQL changes. For a new Supabase project only,
+apply the migration below; then configure Auth URLs and environment variables.
 
 1. Open `supabase/migrations/20261006000000_production_tasks.sql`.
 2. Paste **the entire file** into your project's Supabase SQL Editor and run it.
@@ -49,7 +51,7 @@ Copy-Item .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Your project's publishable key |
 | `NEXT_PUBLIC_APP_URL` | Exact public origin: local HTTP for development, HTTPS in production |
 | `ICS_ALLOWED_HOSTS` | Optional comma-separated exact school/exporter hostnames |
-| `APP_TIMEZONE` | Timezone for floating ICS timestamps; defaults to `America/New_York` |
+| `APP_TIMEZONE` | Timezone for floating ICS timestamps and the Canvas import date cutoff; defaults to `America/New_York` |
 
 This application requires no service-role key or database password. Public variables
 are compiled into the browser bundle; changing them requires a new production build.
@@ -119,7 +121,11 @@ app/
   api/import/route.ts         authenticated ICS import
 components/
   dashboard.tsx               task UI and confirmed server saves
-  calendar-view.tsx           monthly calendar and status controls
+  task-workspace.tsx          view switch, category/sort filters and completion tabs
+  task-row.tsx                full task information and useful links
+  task-status-controls.tsx    mutually exclusive status checkboxes
+  calendar-view.tsx           compact month previews and day overflow
+  calendar-day-details.tsx    native dialog with all tasks for a day
   auth-panel.tsx              email/password authentication
   reset-password.tsx          password update form
 lib/
@@ -130,6 +136,8 @@ lib/
   tasks.ts                    types, validation, colors and urgency
   feed-fetch.ts               restricted HTTPS downloader
   ics.ts                      ICS parsing and stable task IDs
+  import-policy.ts            timezone-aware Canvas date cutoff
+  task-workflow.ts            list/calendar filtering and status transitions
 proxy.ts                      cookie refresh and private cache headers
 instrumentation.ts            server timezone initialization
 supabase/migrations/           authoritative production SQL
@@ -154,8 +162,17 @@ use private, no-store caching. Account changes clear displayed tasks; delayed re
 from the previous account are discarded. Visible tabs refresh account tasks once a
 minute and on focus. This is cross-device persistence with polling, not realtime push.
 
-The list reads in pages to avoid Supabase's default 1,000-row response cap. Completed
-tasks stay stored. Hide done and category filters apply to both views.
+The list reads in pages to avoid Supabase's default 1,000-row response cap. Active
+contains To Do and In Progress tasks; Completed retains finished tasks and their
+dates, categories, sources and links. Checking In progress or Completed clears the
+other state; unchecking the selected state returns the task to To Do. Every change
+uses the existing persisted status API.
+
+The calendar shows both active and completed tasks, with completed titles dimmed
+and crossed out. Category filters apply to both views. Each day shows at most two
+previews; select a preview or +N more for all details and status controls. Escape or
+Close dismisses the day dialog and restores focus to its opener. Smaller screens
+can scroll the month horizontally while the detail panel fits the viewport.
 Colors are Homework blue, Applications violet, Job Tasks amber, and Other teal.
 Overdue and unfinished deadlines within 48 hours have red flags. These are visual
 indicators, not email or push notifications.
@@ -168,6 +185,12 @@ provided by your institution or exporter; a course page URL does not work.
 
 - `VEVENT.DTSTART` and `VTODO.DUE` supply deadlines. HTTP(S) event URLs become useful
   links. Imported tasks start as Homework / To Do.
+- New Canvas entries are imported only when their calendar date is today or later
+  in `APP_TIMEZONE` (fallback `America/New_York`). Earlier deadlines on the same
+  day are retained. All-day events keep their literal date. Existing Canvas records,
+  including historical/completed tasks, can still refresh; no records are deleted
+  or automatically completed. Gradescope imports retain their existing behavior.
+  The result reports imported/refreshed assignments and skipped past assignments.
 - Reimporting the same source, feed URL and event UID updates names, deadlines and
   links while preserving existing status/category. The database applies the batch
   atomically. Feed token rotation changes the identity and can create new entries.
@@ -196,8 +219,7 @@ provided by your institution or exporter; a course page URL does not work.
 
 1. Apply the SQL above and complete the local sign-in/task checks below.
 2. Push this project directory to your Git repository and import it into Vercel as
-   a Next.js project. If the repository contains the surrounding workspace, set
-   the Vercel root directory to `outputs/deadline-tracker-starter`.
+   a Next.js project. This repository has its application at the repository root.
 3. Set the five environment variables from the table. Production
    `NEXT_PUBLIC_APP_URL` must be the exact HTTPS origin you will open, with no path.
    Origin validation deliberately rejects alternate preview domains; configure
@@ -220,15 +242,20 @@ npm run test:smoke
 
 The SQL tests execute the actual migration with PGlite's PostgreSQL engine and model
 Supabase's auth roles/UID. They cover two-account CRUD isolation, anonymous denial,
-atomic imports, status preservation, rollback, migration retries, date constraints
-and durable limits. They do not replace verification of the hosted Auth service.
+atomic/repeated imports, status/category preservation, rollback, migration retries,
+date constraints and durable limits. Unit tests also cover Canvas calendar-date
+filtering across timezones, checkbox transitions and list/calendar filtering.
+They do not replace verification of the hosted Auth service.
 
-After applying SQL, verify in your own signed-in browser:
+Before merging or deploying, verify in your own signed-in browser:
 
 1. Add a task, change its status, reload, and check it in another browser/device.
-2. Import a personal feed twice; verify no duplicate IDs and completed status remains.
+2. Import a personal Canvas feed twice; verify no duplicate IDs, new past dates are
+   skipped, earlier-today entries remain, and existing status/category/history survives.
 3. Import the old browser backup; reload and confirm its original data is preserved.
 4. Sign out, sign in to a second account, and confirm its task list is separate.
 5. Exercise email confirmation and password reset with real email delivery.
+6. Check Active/Completed tabs, category filters, both status checkboxes, and compact
+   calendar previews/day details on desktop and mobile.
 
 See `VERIFICATION.md` for results and the remaining hosted checks.

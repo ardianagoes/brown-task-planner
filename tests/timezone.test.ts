@@ -41,7 +41,7 @@ END:VCALENDAR`;
   `;
   // Isolated processes avoid changing the test runner's timezone. Start each in
   // UTC to prove the app setting, rather than the host timezone, controls parsing.
-  for (const timezone of [undefined, "", "America/New_York", "America/Los_Angeles"]) {
+  for (const timezone of [undefined, "", "America/New_York", "America/Los_Angeles", "Asia/Tokyo"]) {
     const env: NodeJS.ProcessEnv = { ...process.env, NEXT_RUNTIME: "nodejs", TZ: "UTC" };
     if (timezone === undefined) delete env.APP_TIMEZONE;
     else env.APP_TIMEZONE = timezone;
@@ -49,9 +49,10 @@ END:VCALENDAR`;
       env, encoding: "utf8", timeout: 15000,
     }));
     const pacific = timezone === "America/Los_Angeles";
+    const tokyo = timezone === "Asia/Tokyo";
     assert.deepEqual(result, [
-      pacific ? "2026-10-07T21:00:00.000Z" : "2026-10-07T18:00:00.000Z",
-      pacific ? "2026-11-07T22:00:00.000Z" : "2026-11-07T19:00:00.000Z",
+      tokyo ? "2026-10-07T05:00:00.000Z" : pacific ? "2026-10-07T21:00:00.000Z" : "2026-10-07T18:00:00.000Z",
+      tokyo ? "2026-11-07T05:00:00.000Z" : pacific ? "2026-11-07T22:00:00.000Z" : "2026-11-07T19:00:00.000Z",
       "2026-10-07T18:00:00.000Z",
       "2026-10-07T12:00:00.000Z",
       "2026-10-08",

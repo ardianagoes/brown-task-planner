@@ -1,14 +1,17 @@
 import { createHash } from "node:crypto";
 import ical, { type DateWithTimeZone, type ParameterValue } from "node-ical";
-import { isTask, safeUrl, type Task } from "./tasks";
+import { isTask, localDay, safeUrl, type Task } from "./tasks";
 
 function text(value: ParameterValue | undefined): string {
   return typeof value === "string" ? value : value?.val || "";
 }
 function hash(value: string): string { return createHash("sha256").update(value).digest("hex"); }
 function dateOnly(date: DateWithTimeZone): string {
+  // node-ical constructs unzoned DATE values at local midnight. Preserve those
+  // calendar fields, including on servers east of UTC.
+  if (!date.tz) return localDay(date);
   const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: date.tz || "UTC", year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone: date.tz, year: "numeric", month: "2-digit", day: "2-digit",
   }).formatToParts(date);
   return ["year", "month", "day"].map(type => parts.find(part => part.type === type)?.value).join("-");
 }

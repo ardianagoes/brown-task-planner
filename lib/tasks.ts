@@ -16,10 +16,10 @@ export type Task = {
 
 // Literal class names let Tailwind discover every category color at build time.
 export const CATEGORY_STYLE: Record<Category, string> = {
-  Homework: "bg-blue-100 text-blue-900 border-blue-300",
-  Applications: "bg-violet-100 text-violet-900 border-violet-300",
-  "Job Tasks": "bg-amber-100 text-amber-900 border-amber-300",
-  Other: "bg-teal-100 text-teal-900 border-teal-300",
+  Homework: "bg-blue-950/60 text-blue-200 border-blue-700/60",
+  Applications: "bg-violet-950/60 text-violet-200 border-violet-700/60",
+  "Job Tasks": "bg-amber-950/50 text-amber-200 border-amber-700/60",
+  Other: "bg-teal-950/60 text-teal-200 border-teal-700/60",
 };
 
 export function safeUrl(value: string): string | null {

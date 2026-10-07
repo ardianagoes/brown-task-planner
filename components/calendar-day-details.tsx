@@ -33,7 +33,7 @@ export default function CalendarDayDetails({ day, tasks, now, initialTaskId, dis
     </header>
     <div className="space-y-3 p-4 sm:p-5">
       {tasks.length === 0 ? <p className="p-4 text-slate-400">No deadlines for this day.</p> : tasks.map(task =>
-        <TaskRow key={task.id} task={task} now={now} disabled={disabled} onStatusChange={onStatusChange} />)}
+        <TaskRow key={task.id} task={task} now={now} disabled={disabled} onStatusChange={onStatusChange} variant="calendar" />)}
     </div>
     <p className="border-t border-slate-800 px-5 py-3 text-xs text-slate-400">Press Escape to close.</p>
   </dialog>;

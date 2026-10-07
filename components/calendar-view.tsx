@@ -50,10 +50,10 @@ export default function CalendarView({ tasks, now, onStatusChange, disabled = fa
               return <button key={task.id} type="button" title={`${time} · ${task.name} · ${flag.text}`}
                 aria-label={`${task.name}, ${time}, ${flag.text}. Open day details`}
                 onClick={() => setSelected({ day: key, taskId: task.id })}
-                className={`flex h-5 w-full min-w-0 items-center gap-1 rounded border-l-2 px-1 text-left text-[11px] transition-colors hover:brightness-125 ${CATEGORY_STYLE[task.category]} ${completed ? "opacity-60" : ""}`}>
+                className={`flex h-5 w-full min-w-0 items-center gap-1 rounded border-l-2 px-1 text-left text-[11px] transition-colors hover:brightness-125 ${CATEGORY_STYLE[task.category]} ${completed ? "saturate-50" : ""}`}>
                 {flag.urgent && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400" aria-hidden="true" />}
-                <span className="shrink-0 text-[10px] tabular-nums">{time}</span>
-                <span className={`truncate ${completed ? "line-through" : ""}`}>{task.name}</span>
+                <span className={`shrink-0 text-[10px] tabular-nums ${completed ? "text-slate-400 line-through" : ""}`}>{time}</span>
+                <span className={`truncate ${completed ? "text-slate-400 line-through" : ""}`}>{task.name}</span>
               </button>;
             })}</div>
             {dayTasks.length > 2 && <button type="button" className="mt-1 min-h-5 rounded px-1 text-xs font-medium text-blue-300 hover:bg-slate-800"

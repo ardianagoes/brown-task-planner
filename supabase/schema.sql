@@ -1,0 +1,6 @@
+-- The former optional starter schema has been replaced by a complete migration.
+-- In Supabase SQL Editor, run the full contents of:
+--   migrations/20261006000000_production_tasks.sql
+-- That file creates the tasks table, ownership policies, migration receipts,
+-- atomic import functions, and durable import rate limits in one transaction.
+-- This pointer intentionally executes no SQL. Do not run the old starter schema.

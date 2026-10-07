@@ -2,6 +2,9 @@ import { before, after, test } from "node:test";
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { PGlite } from "@electric-sql/pglite";
+import { parseFeed } from "../lib/ics";
+import { canvasImportWindow } from "../lib/import-policy";
+import { toTaskRow } from "../lib/task-store";
 
 const db = new PGlite();
 const alice = "11111111-1111-4111-8111-111111111111";
@@ -88,6 +91,28 @@ test("feed refresh preserves a concurrently completed status/category and scopes
   });
   const invisible = await asUser(bob, () => db.query("select id from public.tasks where id='import-row'"));
   assert.equal(invisible.rows.length, 0);
+});
+
+test("Repeated Canvas feed imports create one database record and preserve status/category/history", async () => {
+  const feed = "https://school.instructure.com/private-test-calendar.ics";
+  const calendar = (name: string, due: string) => `BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nUID:repeat-canvas\nSUMMARY:${name}\nDTSTART:${due}\nEND:VEVENT\nEND:VCALENDAR`;
+  const first = await parseFeed(calendar("Original assignment", "20261008T180000Z"), feed, "Canvas");
+  const id = first.tasks[0].id;
+  await asUser(alice, async () => {
+    const window = canvasImportWindow(first.tasks, new Set(), new Date("2026-10-06T12:00:00Z"));
+    for (let attempt = 0; attempt < 3; attempt++) await importTasks(window.tasks.map(item => toTaskRow(item, alice)));
+    await db.query("update public.tasks set status='Submitted/Done', category='Applications' where id=$1", [id]);
+    const next = await parseFeed(calendar("Moved assignment", "20261009T180000Z"), feed, "Canvas");
+    assert.equal(next.tasks[0].id, id);
+    const refresh = canvasImportWindow(next.tasks, new Set([id]), new Date("2026-10-06T12:00:00Z"));
+    await importTasks(refresh.tasks.map(item => toTaskRow(item, alice)));
+    // An existing assignment may still refresh after its deadline; never delete its history.
+    const history = canvasImportWindow(next.tasks, new Set([id]), new Date("2026-12-01T12:00:00Z"));
+    assert.equal(history.tasks.length, 1);
+    await importTasks(history.tasks.map(item => toTaskRow(item, alice)));
+    const records = await db.query<{ name: string; status: string; category: string }>("select name,status,category from public.tasks where id=$1", [id]);
+    assert.deepEqual(records.rows, [{ name: "Moved assignment", status: "Submitted/Done", category: "Applications" }]);
+  });
 });
 
 test("browser migration is idempotent, preserves newer cloud rows, and is isolated per user", async () => {

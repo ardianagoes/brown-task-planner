@@ -21,9 +21,9 @@ export default function ResetPassword() {
     finally { setBusy(false); }
   }
   return <main className="mx-auto max-w-md p-6 py-16"><h1 className="text-2xl font-bold">Choose a new password</h1>
-    <form onSubmit={submit} className="mt-6 space-y-4 rounded-xl border border-slate-200 bg-white p-6">
-      <label className="block">New password<input name="password" type="password" required minLength={12} maxLength={256} autoComplete="new-password" className="mt-1 w-full rounded-lg border p-3" /></label>
-      <label className="block">Confirm password<input name="confirm" type="password" required minLength={12} maxLength={256} autoComplete="new-password" className="mt-1 w-full rounded-lg border p-3" /></label>
-      <button disabled={busy} className="w-full rounded-lg bg-slate-900 p-3 text-white">{busy ? "Updating…" : "Update password"}</button><p role="alert">{error}</p>
+    <form onSubmit={submit} className="mt-6 space-y-4 panel p-6">
+      <label className="block">New password<input name="password" type="password" required minLength={12} maxLength={256} autoComplete="new-password" className="control mt-1" /></label>
+      <label className="block">Confirm password<input name="confirm" type="password" required minLength={12} maxLength={256} autoComplete="new-password" className="control mt-1" /></label>
+      <button disabled={busy} className="button-primary w-full">{busy ? "Updating…" : "Update password"}</button><p role="alert">{error}</p>
     </form></main>;
 }

@@ -1,41 +1,69 @@
 "use client";
-import { useState } from "react";
-import { CATEGORY_STYLE, STATUSES, localDay, taskDay, urgency, type Status, type Task } from "@/lib/tasks";
+import { useMemo, useState } from "react";
+import { CATEGORY_STYLE, deadlineMillis, localDay, taskDay, urgency, type Status, type Task } from "@/lib/tasks";
+import CalendarDayDetails from "./calendar-day-details";
 
 export default function CalendarView({ tasks, now, onStatusChange, disabled = false }: {
   tasks: Task[]; now: number; onStatusChange: (id: string, status: Status) => void; disabled?: boolean;
 }) {
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [selected, setSelected] = useState<{ day: string; taskId?: string } | null>(null);
+  const byDay = useMemo(() => {
+    const grouped = new Map<string, Task[]>();
+    for (const task of tasks) {
+      const day = taskDay(task);
+      grouped.set(day, [...(grouped.get(day) || []), task]);
+    }
+    for (const dayTasks of grouped.values()) dayTasks.sort((a, b) => deadlineMillis(a) - deadlineMillis(b));
+    return grouped;
+  }, [tasks]);
   const start = new Date(month.getFullYear(), month.getMonth(), 1);
   start.setDate(start.getDate() - start.getDay());
   const days = Array.from({ length: 42 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
   function moveMonth(delta: number) { setMonth(previous => new Date(previous.getFullYear(), previous.getMonth() + delta, 1)); }
   return <div>
-    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-      <h3 className="text-lg font-semibold" aria-live="polite">{month.toLocaleString(undefined, { month: "long", year: "numeric" })}</h3>
-      <div className="flex gap-2">
-        <button type="button" className="rounded-md border border-slate-300 px-3 py-2" onClick={() => moveMonth(-1)}>Previous</button>
-        <button type="button" className="rounded-md border border-slate-300 px-3 py-2" onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</button>
-        <button type="button" className="rounded-md border border-slate-300 px-3 py-2" onClick={() => moveMonth(1)}>Next</button>
+    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+      <h3 className="text-base font-semibold" aria-live="polite">{month.toLocaleString(undefined, { month: "long", year: "numeric" })}</h3>
+      <div className="flex gap-1.5">
+        <button type="button" className="button-secondary" onClick={() => moveMonth(-1)} aria-label="Previous month">Previous</button>
+        <button type="button" className="button-secondary" onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</button>
+        <button type="button" className="button-secondary" onClick={() => moveMonth(1)} aria-label="Next month">Next</button>
       </div>
     </div>
-    <p className="mb-3 text-sm text-slate-500">Open a deadline to update its status. Red borders flag overdue or upcoming deadlines within 48 hours.</p>
+    <p className="mb-4 text-xs text-slate-400">All statuses are shown. Open a day to see full details. Red dots flag urgent deadlines.</p>
     <div className="overflow-x-auto pb-2" tabIndex={0} aria-label="Monthly calendar; scroll horizontally on smaller screens">
-      <div className="grid min-w-[700px] grid-cols-7 gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => <div key={day} className="bg-slate-50 p-2 text-center text-sm font-medium">{day}</div>)}
+      <div className="grid min-w-[600px] grid-cols-7 gap-px overflow-hidden rounded-xl border border-slate-800 bg-slate-800">
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => <div key={day} className="bg-slate-900 p-2 text-center text-xs font-medium text-slate-400">{day}</div>)}
         {days.map(day => {
           const key = localDay(day);
-          const dayTasks = tasks.filter(task => taskDay(task) === key);
-          return <section key={key} aria-label={day.toLocaleDateString(undefined, { dateStyle: "full" })} className={`min-h-32 min-w-0 p-2 ${day.getMonth() === month.getMonth() ? "bg-white" : "bg-slate-50"}`}>
-            <p className={`mb-2 text-sm ${key === localDay(new Date(now)) ? "font-bold text-blue-700" : "text-slate-500"}`}>{day.getDate()}</p>
-            <div className="space-y-2">{dayTasks.map(task => <details key={task.id} className={`rounded-md border p-1.5 text-sm ${CATEGORY_STYLE[task.category]} ${urgency(task, now).urgent ? "ring-2 ring-red-500" : ""}`}>
-              <summary className={`cursor-pointer break-words ${task.status === "Submitted/Done" ? "line-through opacity-70" : ""}`}>{task.allDay ? "All day" : new Date(task.dueAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}<br />{task.name}</summary>
-              <p className="mt-2">{urgency(task, now).text}</p>
-              <label className="mt-2 block">Status<select disabled={disabled} aria-label={`Status for ${task.name}`} className="mt-1 w-full rounded border bg-white p-1 text-slate-900" value={task.status} onChange={e => onStatusChange(task.id, e.target.value as Status)}>{STATUSES.map(s => <option key={s}>{s}</option>)}</select></label>
-            </details>)}</div>
+          const dayTasks = byDay.get(key) || [];
+          const today = key === localDay(new Date(now));
+          return <section key={key} aria-label={day.toLocaleDateString(undefined, { dateStyle: "full" })}
+            className={`h-28 min-w-0 p-1.5 sm:p-2 ${day.getMonth() === month.getMonth() ? "bg-slate-900" : "bg-slate-950/80"}`}>
+            <p className={`mb-1 inline-flex h-6 w-6 items-center justify-center rounded-md text-xs ${today ? "bg-blue-600 font-bold text-white" : "text-slate-400"}`}>
+              <time dateTime={key} aria-current={today ? "date" : undefined}>{day.getDate()}</time>
+            </p>
+            <div className="space-y-0.5">{dayTasks.slice(0, 2).map(task => {
+              const flag = urgency(task, now);
+              const time = task.allDay ? "All day" : new Date(task.dueAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+              const completed = task.status === "Submitted/Done";
+              return <button key={task.id} type="button" title={`${time} · ${task.name} · ${flag.text}`}
+                aria-label={`${task.name}, ${time}, ${flag.text}. Open day details`}
+                onClick={() => setSelected({ day: key, taskId: task.id })}
+                className={`flex h-5 w-full min-w-0 items-center gap-1 rounded border-l-2 px-1 text-left text-[11px] transition-colors hover:brightness-125 ${CATEGORY_STYLE[task.category]} ${completed ? "opacity-60" : ""}`}>
+                {flag.urgent && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400" aria-hidden="true" />}
+                <span className="shrink-0 text-[10px] tabular-nums">{time}</span>
+                <span className={`truncate ${completed ? "line-through" : ""}`}>{task.name}</span>
+              </button>;
+            })}</div>
+            {dayTasks.length > 2 && <button type="button" className="mt-1 min-h-5 rounded px-1 text-xs font-medium text-blue-300 hover:bg-slate-800"
+              aria-label={`Show ${dayTasks.length - 2} more deadlines for ${day.toLocaleDateString(undefined, { dateStyle: "full" })}`}
+              onClick={() => setSelected({ day: key })}>+{dayTasks.length - 2} more</button>}
           </section>;
         })}
       </div>
     </div>
+    {selected && <CalendarDayDetails day={selected.day} initialTaskId={selected.taskId} tasks={byDay.get(selected.day) || []}
+      now={now} disabled={disabled} onStatusChange={onStatusChange} onClose={() => setSelected(null)} />}
   </div>;
 }

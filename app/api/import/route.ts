@@ -2,7 +2,8 @@ import { allowedFeedUrl, fetchFeed } from "@/lib/feed-fetch";
 import { parseFeed } from "@/lib/ics";
 import { requireUser, reply, apiError } from "@/lib/api";
 import { assertSameOrigin, HttpError, readJson } from "@/lib/http";
-import { databaseError, toTaskRow } from "@/lib/task-store";
+import { databaseError, listTaskIds, toTaskRow } from "@/lib/task-store";
+import { canvasImportWindow } from "@/lib/import-policy";
 import type { Json } from "@/lib/supabase/database.types";
 
 export const runtime = "nodejs";
@@ -24,10 +25,13 @@ export async function POST(request: Request) {
     if (!allowance.allowed) return reply({ error: "Import limit reached. Try again in a few minutes." }, 429, { "Retry-After": String(allowance.retryAfter) });
     const content = await fetchFeed(url);
     const result = await parseFeed(content, url.href, body.source);
-    const unique = [...new Map(result.tasks.map(task => [task.id, task])).values()];
+    const window = body.source === "Canvas"
+      ? canvasImportWindow(result.tasks, await listTaskIds(supabase, user.id))
+      : { tasks: result.tasks, skippedPast: 0 };
+    const unique = [...new Map(window.tasks.map(task => [task.id, task])).values()];
     const saved = await supabase.rpc("import_tasks", { p_tasks: unique.map(task => toTaskRow(task, user.id)) as Json });
     databaseError(saved.error);
-    return reply({ count: saved.data, warnings: result.warnings });
+    return reply({ count: saved.data, skippedPast: window.skippedPast, warnings: result.warnings });
   } catch (error) {
     // Do not log private URLs or return low-level errors that could include tokens.
     const known = ["Enter a valid", "Use an HTTPS", "The feed hostname", "The feed did not",

@@ -116,7 +116,7 @@ app/
   auth/reset/page.tsx         authenticated password reset
   auth/signout/route.ts       same-origin sign-out
   api/tasks/route.ts          read/create tasks
-  api/tasks/[id]/route.ts     change task status
+  api/tasks/[id]/route.ts     change status or delete an owned task
   api/tasks/migrate/route.ts  atomic browser-backup migration
   api/import/route.ts         authenticated ICS import
 components/
@@ -167,6 +167,13 @@ contains To Do and In Progress tasks; Completed retains finished tasks and their
 dates, categories, sources and links. Checking In progress or Completed clears the
 other state; unchecking the selected state returns the task to To Do. Every change
 uses the existing persisted status API.
+
+Select **Delete** on a list row or in calendar day details, then confirm **Delete
+task** to permanently remove it from your account. Cancel leaves it unchanged.
+The UI removes the record only after a successful server response; failed deletes
+remain visible with a retryable error. Deletion is owner-scoped and safe to retry.
+Deleting an imported assignment does not suppress it from its feed: a later import
+can recreate it if it remains eligible. Your original browser backup is unchanged.
 
 The calendar shows both active and completed tasks, with completed titles dimmed
 and crossed out. Category filters apply to both views. Each day shows at most two

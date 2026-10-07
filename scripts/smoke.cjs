@@ -19,6 +19,11 @@ const origin = new URL(process.env.SMOKE_APP_URL || 'http://127.0.0.1:3000').ori
   assert.equal(patch.status, 401);
   const foreignPatch = await fetch(origin + '/api/tasks/test', { method: 'PATCH', headers: { Origin: 'https://evil.example', 'Content-Type': 'application/json' }, body: '{}' });
   assert.equal(foreignPatch.status, 403);
+  for (const headers of [{ Origin: origin }, { Origin: 'https://evil.example' }, {}]) {
+    const deletion = await fetch(origin + '/api/tasks/test', { method: 'DELETE', headers });
+    assert.equal(deletion.status, headers.Origin === origin ? 401 : 403, 'DELETE task protection');
+    assert.match(deletion.headers.get('cache-control'), /no-store/);
+  }
   const reset = await fetch(origin + '/auth/reset', { redirect: 'manual' });
   assert.equal(reset.status, 307);
   assert.equal(new URL(reset.headers.get('location'), origin).pathname, '/login');

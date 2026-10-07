@@ -154,6 +154,17 @@ export default function Dashboard({ user }: { user: { id: string; email: string 
     finally { busy.current = false; setSaving(false); }
   }
 
+  async function deleteTask(id: string) {
+    if (busy.current) throw new Error("Another save is in progress. Try again.");
+    busy.current = true; setSaving(true); ++readSequence.current;
+    try {
+      const result = await apiRequest(`/api/tasks/${encodeURIComponent(id)}`, { method: "DELETE" });
+      if (result.deletedId !== id) throw new Error("Could not confirm the task deletion.");
+      setTasks(previous => previous.filter(task => task.id !== id));
+      setStorageError("");
+    } finally { busy.current = false; setSaving(false); }
+  }
+
   async function signOut() {
     if (busy.current) return;
     busy.current = true; setSaving(true);
@@ -235,7 +246,7 @@ export default function Dashboard({ user }: { user: { id: string; email: string 
         </section>
       </aside>
       <TaskWorkspace tasks={tasks} now={now} ready={ready} saving={saving} category={category} onCategoryChange={setCategory}
-        onStatusChange={changeStatus} hasError={Boolean(storageError)} onRetry={() => void loadTasks()} />
+        onStatusChange={changeStatus} onDeleteTask={deleteTask} hasError={Boolean(storageError)} onRetry={() => void loadTasks()} />
     </div>
   </main>;
 }

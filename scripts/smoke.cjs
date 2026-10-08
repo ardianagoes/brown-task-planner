@@ -7,7 +7,7 @@ const origin = new URL(process.env.SMOKE_APP_URL || 'http://127.0.0.1:3000').ori
   const task = await fetch(origin + '/api/tasks');
   assert.equal(task.status, 401);
   assert.match(task.headers.get('cache-control'), /no-store/);
-  for (const endpoint of ['/api/tasks','/api/import','/api/tasks/migrate','/auth/signout']) {
+  for (const endpoint of ['/api/tasks','/api/import','/api/tasks/migrate','/api/tasks/extract-image','/auth/signout']) {
     const signedOut = await fetch(origin + endpoint, { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: '{}' });
     assert.equal(signedOut.status, 401, endpoint);
     const foreign = await fetch(origin + endpoint, { method: 'POST', headers: { Origin: 'https://evil.example', 'Content-Type': 'application/json' }, body: '{}' });

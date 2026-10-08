@@ -1,74 +1,80 @@
-# Dashboard UX refresh verification
+# Verification — screenshot task creation
 
-Verified October 6, 2026 with the repository's locked Next.js, React, Supabase,
-node-ical and PGlite dependencies.
+Checked on October 7, 2026 in the existing brown-task-planner checkout.
+Branch: `codex/screenshot-task-creation`, based on current main (`9433761`).
+No duplicate project, ZIP, hosted deployment, or main push was made.
 
-## Repository and database scope
+## Scope
 
-Pulled current `main` and inspected the existing implementation before editing.
-Work is in the existing `ardianagoes/brown-task-planner` checkout on
-`codex/dashboard-ux-refresh`. No duplicate project or ZIP was created.
+Screenshot input, analysis and editable review reuse the existing manual-task API.
+Supabase schema/migration, Auth/session checks, RLS, ICS parsing/downloader,
+status changes, deletion and calendar filtering/styling remain unchanged.
+The new route verifies identity with server-side getUser(), checks mutation origin,
+and uses the existing Postgres consume_import_slot() limiter. Screenshot analyses
+and feed imports share ten attempts per account per ten minutes. No SQL is needed.
 
-The owner reports that `20261006000000_production_tasks.sql` has already been
-applied to the live Supabase project. This refresh requires no schema changes;
-the applied migration is unchanged. Auth/session verification, RLS, persisted
-status writes, browser-backup migration and the secure HTTPS downloader are
-unchanged. No personal feed URL was retained or logged.
+Credentials are server-only. Images remain in transient memory, are decoded and
+resized with metadata removed, and are sent to OpenAI only on Analyze Screenshot.
+No screenshot/image/base64 logging or permanent storage is added. Provider
+retention policies still apply; Responses storage is disabled with store:false.
 
-## Automated verification
+## Automated checks
 
 - `npm run typecheck`: passed.
-- `npm test`: all **28 tests** passed.
+- `npm test`: all **50 tests** passed.
 - `npm run build`: passed.
-- `npm run test:smoke`: passed against the local development server.
+- `npm run test:smoke`: passed against the local development server, including
+  the new extract-image route's unsigned, foreign-origin and missing-origin checks.
 
-The tests include nine actual PostgreSQL/PGlite migration tests covering owner
-isolation, anonymous denial, atomic imports, rollback, repeated feed imports,
-status/category preservation, browser-migration receipts, date constraints and
-durable rate limits. SQL execution is local and does not alter the live project.
+Tests mock all OpenAI requests: no paid API calls occur. Coverage includes:
 
-New coverage checks yesterday/today/tomorrow and all-day Canvas deadlines;
-earlier-today inclusion; New York fallback, UTC midnight, DST and Tokyo date
-boundaries; existing history preservation; repeated parser-to-database imports
-producing one record; status/category preservation after a deadline moves;
-Active/Completed partitions; completed calendar retention; and checkbox
-transitions. The timezone process test also checks all-day dates east of UTC.
-Existing task/date validation, URL/SSRF and request protections remain covered.
+- Clipboard image handling without intercepting ordinary text-field paste.
+- Drop/file replacement, removal, type/size rejection and local-only preview.
+- Explicit analyze action; no save until Add Assignment; multiple candidates with
+  no arbitrary selection; editable review; required missing/uncertain details.
+- Duplicate warnings and opt-in, retained images/drafts on failure, unchanged retry
+  IDs, manual entry, and all-day/timed switching.
+- PNG/JPEG/WebP real decoding, MIME spoofing, excessive pixels, actual streamed size
+  caps, metadata removal, authentication-before-reading/AI and fail-closed limits.
+- Structured-output validation, malformed/refused/incomplete/oversized responses,
+  safe provider failure messages, prompt injection boundaries and request budgets.
+- Current New York calendar date across UTC midnight, tomorrow/Friday/tonight/in
+  three days, inferred years, missing/conflicting dates, date-only deadlines,
+  explicit offsets and IANA timezone conversion, DST gaps/repeated times.
+- Reviewed tasks persisted in PostgreSQL/PGlite through the manual-create conflict
+  policy: date vs UTC timestamp, Manual/To Do, no overwrite on retry, owner isolation.
+- All existing task/auth/ICS/SSRF/database/status/calendar tests.
 
-HTTP smoke checks cover signed-out dashboard/recovery protection, rejection of
-unauthenticated reads/mutations, foreign/missing mutation-origin rejection,
-private/no-store responses and safe callback destinations.
+Mocked results include Canvas, discussion, email, PDF syllabus and slide candidates.
+They verify the universal extraction contract, not real model recognition accuracy.
 
-## Browser verification
+## Browser checks
 
-Used the real workspace, task rows, status controls and calendar components with
-temporary local sample data. The fixture route was removed before the final build
-and is not included in the commit.
+Used the real TaskCreator and TaskWorkspace components with a temporary local UI
+fixture, sample pixels and mocked analysis. The fixture was removed before the
+final build and is not committed. No real account/task/provider data was changed.
 
-- Active/Completed counts, keyboard tab navigation and task movement passed.
-- Checking either status clears the other; unchecking returns to To Do.
-- Completed tasks remain visible in the calendar, dimmed and crossed out.
-- Two compact previews and +N more open every task's full details, links and status.
-- Escape and Close dismiss the native dialog and restore focus to the opener.
-- At a 390px viewport, the calendar scrolls within its container and the dialog
-  fits the viewport with readable wrapped task names.
-- Dark sign-in, signup and forgot-password forms rendered without console errors.
+- Binary PNG browser clipboard + actual Ctrl+V replaced the image preview.
+- Preview, explicit Analyze, no task write on analysis, multiple-candidate selection,
+  uncertainty fields/confirmation and Add Assignment rendered and worked.
+- Confirmed task appeared in the normal list and calendar; screenshot cleared.
+- Repeating the sample showed the duplicate checkbox and retained the existing task.
+- Dark theme, editable time/zone fields and controls were readable.
+- No browser error/warning console messages occurred during these interactions.
 
-These browser checks use sample data for UI interaction, not a signed-in account.
-Persisted status writes retain the existing API path; database behavior is covered
-by the SQL tests. No account was created, email sent or password changed.
+Visual proof is saved outside the repository as outputs/screenshot-task-review.jpg.
+This uses sample data and clearly labels the mocked analysis.
 
-## Manual checks before merging/deploying
+## Remaining real-service checks / setup
 
-- Sign in to the hosted project, create a task, toggle both statuses, reload and
-  confirm persistence from another device.
-- Import a personal Canvas feed twice. Confirm new past dates are skipped, today's
-  earlier deadlines remain, and existing history/status/category are preserved.
-- Check category filtering and calendar day details on desktop and mobile.
-- Check browser-backup migration and account isolation using a second real account.
-- Exercise actual email confirmation/recovery and session refresh.
-- Verify the Vercel canonical HTTPS URL, Auth redirects and
-  `APP_TIMEZONE=America/New_York`.
+1. Add OPENAI_API_KEY and OPENAI_IMAGE_MODEL=gpt-5.4-mini to local/Vercel server
+   environment settings. Keep APP_TIMEZONE=America/New_York and the existing
+   Supabase/canonical URL settings. Restart locally or redeploy Vercel.
+2. Sign in, paste real screenshots from several sources, analyze and check extraction
+   accuracy before saving. Try relative, ambiguous, date-only and multi-task images.
+3. Confirm the saved task after reload and on another device; verify all-day/calendar
+   date and timed deadline in your browser timezone. Test a duplicate and safe retry.
+4. Monitor OpenAI API usage, quota and costs. Standard provider retention applies.
 
-No hosted deployment or authenticated live-project verification was performed
-during this refresh.
+No real paid vision analysis or authenticated hosted persistence was performed.
+PostgreSQL tests are local and do not modify the hosted Supabase project.

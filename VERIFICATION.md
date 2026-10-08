@@ -1,80 +1,75 @@
-# Verification — screenshot task creation
+# Verification — free local screenshot OCR
 
-Checked on October 7, 2026 in the existing brown-task-planner checkout.
-Branch: `codex/screenshot-task-creation`, based on current main (`9433761`).
-No duplicate project, ZIP, hosted deployment, or main push was made.
+Checked October 8, 2026 in the existing brown-task-planner checkout.
+Branch: `codex/free-screenshot-ocr`, based on main (`5c1a1e5`).
 
-## Scope
+## Scope and privacy
 
-Screenshot input, analysis and editable review reuse the existing manual-task API.
-Supabase schema/migration, Auth/session checks, RLS, ICS parsing/downloader,
-status changes, deletion and calendar filtering/styling remain unchanged.
-The new route verifies identity with server-side getUser(), checks mutation origin,
-and uses the existing Postgres consume_import_slot() limiter. Screenshot analyses
-and feed imports share ten attempts per account per ten minutes. No SQL is needed.
+Tesseract.js runs in browser workers. Engine scripts, all six WebAssembly core
+variants and English trained data are copied from pinned npm packages into
+`public/ocr` during install, development, tests and production builds. Worker
+paths are explicitly same-origin; worker Content Security Policy restricts script,
+worker and connection destinations to this application. No OCR CDN, API key,
+external model or cloud OCR request is used.
 
-Credentials are server-only. Images remain in transient memory, are decoded and
-resized with metadata removed, and are sent to OpenAI only on Analyze Screenshot.
-No screenshot/image/base64 logging or permanent storage is added. Provider
-retention policies still apply; Responses storage is disabled with store:false.
+Screenshots remain transient browser memory: no server upload, localStorage or
+IndexedDB OCR cache. Local canvas normalization strips file metadata. Recognition
+has cancellation and a 90-second timeout. Only explicitly confirmed task details
+use the existing Supabase task-saving API. No schema changes are required.
+
+The paid extraction endpoint and provider helpers are removed. Supabase Auth,
+task persistence, duplicate handling, ICS download/parsing, task status, deletion
+and calendar behavior are unchanged.
 
 ## Automated checks
 
 - `npm run typecheck`: passed.
-- `npm test`: all **50 tests** passed.
+- `npm test`: all **55 tests** passed.
 - `npm run build`: passed.
 - `npm run test:smoke`: passed against the local development server, including
-  the new extract-image route's unsigned, foreign-origin and missing-origin checks.
+  same-origin OCR asset headers and removal of the paid extraction endpoint.
+- Production OCR asset HEAD checks and same-origin worker policy: passed. The
+  additional full production smoke run reached the existing HTTPS-origin guard
+  (503) with local HTTP settings; no security behavior was changed for testing.
 
-Tests mock all OpenAI requests: no paid API calls occur. Coverage includes:
+Coverage includes common month-name/ISO/numeric deadlines, missing and conflicting
+dates, ambiguous day/month order, inferred years, leap days, relative dates across
+timezone midnight, timed/all-day assignments, explicit offsets and DST validation.
+Parser fixtures represent assignment pages, discussions, PDFs and emails. OCR
+confidence, multiple candidates, bounded text, worker lifecycle/failure/cancel/
+timeout, image signatures and local asset presence are checked. The actual worker
+wrapper is exercised with controlled engine callbacks to verify local paths and
+disabled persistent language caching.
 
-- Clipboard image handling without intercepting ordinary text-field paste.
-- Drop/file replacement, removal, type/size rejection and local-only preview.
-- Explicit analyze action; no save until Add Assignment; multiple candidates with
-  no arbitrary selection; editable review; required missing/uncertain details.
-- Duplicate warnings and opt-in, retained images/drafts on failure, unchanged retry
-  IDs, manual entry, and all-day/timed switching.
-- PNG/JPEG/WebP real decoding, MIME spoofing, excessive pixels, actual streamed size
-  caps, metadata removal, authentication-before-reading/AI and fail-closed limits.
-- Structured-output validation, malformed/refused/incomplete/oversized responses,
-  safe provider failure messages, prompt injection boundaries and request budgets.
-- Current New York calendar date across UTC midnight, tomorrow/Friday/tonight/in
-  three days, inferred years, missing/conflicting dates, date-only deadlines,
-  explicit offsets and IANA timezone conversion, DST gaps/repeated times.
-- Reviewed tasks persisted in PostgreSQL/PGlite through the manual-create conflict
-  policy: date vs UTC timestamp, Manual/To Do, no overwrite on retry, owner isolation.
-- All existing task/auth/ICS/SSRF/database/status/calendar tests.
+UI tests cover clipboard/drop/upload, retained previews, manual correction,
+uncertainty confirmation, no save before Add Assignment, failure recovery without
+starting over, duplicates and stable retry IDs. Existing database tests verify
+reviewed task persistence and owner isolation using local PostgreSQL/PGlite.
 
-Mocked results include Canvas, discussion, email, PDF syllabus and slide candidates.
-They verify the universal extraction contract, not real model recognition accuracy.
+## Real browser checks
 
-## Browser checks
+A temporary local screen used the real TaskCreator, TaskWorkspace and actual
+Tesseract engine, with sample PNG screenshots and memory-only task saves. The
+screen was removed before the final production build and is not committed.
 
-Used the real TaskCreator and TaskWorkspace components with a temporary local UI
-fixture, sample pixels and mocked analysis. The fixture was removed before the
-final build and is not committed. No real account/task/provider data was changed.
+- Clear light and dark screenshots extracted Problem Set 13, October 15, 2026,
+  5 PM EST, and Homework correctly.
+- Multiple deadlines produced separate candidates without arbitrary selection.
+- Tomorrow resolved to October 9 using October 8 in America/New_York and was
+  flagged for review. An ambiguous 10/11/2026 date remained blank.
+- A blank screenshot opened the editable form with the screenshot retained.
+- Editing the title and confirming created the reviewed timed task; confirming a
+  date-only application created an all-day task. Analysis itself created no task.
+- No browser warning or error messages occurred.
 
-- Binary PNG browser clipboard + actual Ctrl+V replaced the image preview.
-- Preview, explicit Analyze, no task write on analysis, multiple-candidate selection,
-  uncertainty fields/confirmation and Add Assignment rendered and worked.
-- Confirmed task appeared in the normal list and calendar; screenshot cleared.
-- Repeating the sample showed the duplicate checkbox and retained the existing task.
-- Dark theme, editable time/zone fields and controls were readable.
-- No browser error/warning console messages occurred during these interactions.
+Visual proof is outside the repository: `outputs/free-screenshot-ocr.jpg`.
+Real authenticated hosted Supabase writes were not performed; browser saves used
+disposable sample data in memory. No paid provider was configured or contacted.
 
-Visual proof is saved outside the repository as outputs/screenshot-task-review.jpg.
-This uses sample data and clearly labels the mocked analysis.
+## Deployment
 
-## Remaining real-service checks / setup
-
-1. Add OPENAI_API_KEY and OPENAI_IMAGE_MODEL=gpt-5.4-mini to local/Vercel server
-   environment settings. Keep APP_TIMEZONE=America/New_York and the existing
-   Supabase/canonical URL settings. Restart locally or redeploy Vercel.
-2. Sign in, paste real screenshots from several sources, analyze and check extraction
-   accuracy before saving. Try relative, ambiguous, date-only and multi-task images.
-3. Confirm the saved task after reload and on another device; verify all-day/calendar
-   date and timed deadline in your browser timezone. Test a duplicate and safe retry.
-4. Monitor OpenAI API usage, quota and costs. Standard provider retention applies.
-
-No real paid vision analysis or authenticated hosted persistence was performed.
-PostgreSQL tests are local and do not modify the hosted Supabase project.
+Keep existing Supabase, APP_TIMEZONE and canonical URL settings. No OCR service
+configuration is needed. Former OPENAI_API_KEY / OPENAI_IMAGE_MODEL settings can
+be deleted: the application no longer reads them. Standard npm install/build
+bundles the OCR assets locally; redeploy the branch to publish the replacement.
+English OCR and heuristic parsing need review for blurry images or unusual text.

@@ -3,9 +3,10 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { browserClient } from "@/lib/supabase/client";
-import { CATEGORIES, deadlineMillis, isTask, localDay,
-  safeUrl, type Category, type Status, type Task } from "@/lib/tasks";
+import { deadlineMillis, isTask, type Category, type Status, type Task } from "@/lib/tasks";
+import { parseExtraction, validCalendarDate, validTimezone } from "@/lib/assignment-draft";
 import TaskWorkspace from "./task-workspace";
+import TaskCreator from "./task-creator";
 
 const STORAGE_KEY = "deadline-desk.tasks.v1";
 const control = "control";
@@ -20,12 +21,10 @@ export default function Dashboard({ user }: { user: { id: string; email: string 
   const busy = useRef(false);
   const readSequence = useRef(0);
   const accountEpoch = useRef(0);
-  const pendingManual = useRef<{ signature: string; task: Task } | null>(null);
   const [legacyCount, setLegacyCount] = useState(0);
   const [migrationError, setMigrationError] = useState("");
   const [category, setCategory] = useState<Category | "All">("All");
   const [now, setNow] = useState(0);
-  const [formError, setFormError] = useState("");
   const [notice, setNotice] = useState("");
   const [importing, setImporting] = useState(false);
   const [importMessage, setImportMessage] = useState("");
@@ -92,37 +91,25 @@ export default function Dashboard({ user }: { user: { id: string; email: string 
   }).length;
   const overdue = active.filter(task => deadlineMillis(task) < now).length;
 
-  async function addTask(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (busy.current) return;
-    setFormError("");
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    const name = String(data.get("name") || "").trim();
-    const inputDate = String(data.get("dueAt") || "");
-    const date = new Date(inputDate);
-    if (!name || !Number.isFinite(date.getTime())) { setFormError("Enter a task name and valid deadline."); return; }
-    // datetime-local uses the browser timezone. Reject nonexistent DST local times.
-    const normalized = `${localDay(date)}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-    if (normalized !== inputDate) { setFormError("This time does not exist in your timezone. Choose another time."); return; }
-    const rawUrls = String(data.get("urls") || "").split(/\s+/).filter(Boolean);
-    const urls = rawUrls.map(safeUrl);
-    if (urls.some(url => !url)) { setFormError("Use full http:// or https:// URLs, separated by spaces or new lines."); return; }
-    const selected = String(data.get("category")) as Category;
-    const signature = JSON.stringify({ name, date: date.toISOString(), category: selected, urls });
-    const task: Task = pendingManual.current?.signature === signature ? pendingManual.current.task : {
-      id: crypto.randomUUID(), name, dueAt: date.toISOString(), allDay: false,
-      category: selected, status: "To Do", urls: urls as string[], source: "Manual",
-    };
-    if (!isTask(task)) { setFormError("Use at most 20 URLs, each under 4,096 characters."); return; }
-    pendingManual.current = { signature, task };
+  async function analyzeScreenshot(file: File) {
+    const body = new FormData(); body.set("image", file);
+    const result = await apiRequest("/api/tasks/extract-image", { method: "POST", body, signal: AbortSignal.timeout(40000) });
+    const extraction = result.extraction;
+    if (!extraction || typeof extraction.referenceDate !== "string" || !validCalendarDate(extraction.referenceDate) ||
+      typeof extraction.referenceTimezone !== "string" || !validTimezone(extraction.referenceTimezone)) throw new Error("Could not validate the detected task details.");
+    return parseExtraction({ candidates: extraction.candidates, notes: extraction.notes }, extraction.referenceDate, extraction.referenceTimezone);
+  }
+
+  async function saveCreatedTask(task: Task) {
+    if (busy.current) throw new Error("Another save is in progress. Try again.");
+    if (!isTask(task) || task.source !== "Manual" || task.status !== "To Do") throw new Error("Check the task details before saving.");
     busy.current = true; setSaving(true); ++readSequence.current;
     try {
       const result = await apiRequest("/api/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(task) });
-      if (!isTask(result.task)) throw new Error("Could not confirm the task save.");
+      if (!isTask(result.task) || result.task.id !== task.id) throw new Error("Could not confirm the task save.");
       setTasks(previous => [...previous.filter(item => item.id !== result.task.id), result.task]);
-      pendingManual.current = null; setCategory("All"); form.reset(); setNotice("Task saved to your account.");
-    } catch (error) { setFormError(error instanceof Error ? error.message : "Could not save this task. Try again."); }
+      setCategory("All"); setStorageError("");
+    }
     finally { busy.current = false; setSaving(false); }
   }
 
@@ -210,6 +197,7 @@ export default function Dashboard({ user }: { user: { id: string; email: string 
     </header>
     {storageError && <p role="alert" className="alert-error mb-4">{storageError}</p>}
     {migrationError && <p role="alert" className="alert-info mb-4">{migrationError}</p>}
+    {notice && <p role="status" className="alert-info mb-4">{notice}</p>}
     {legacyCount > 0 && <section className="alert-info mb-5"><h2 className="font-semibold">Bring your browser tasks into this account</h2>
       <p className="my-2">Import {legacyCount} saved tasks to {user.email}. Existing account tasks and your browser backup will be preserved.</p>
       <button type="button" disabled={!ready || saving} className={button} onClick={migrateBackup}>Import browser tasks</button></section>}
@@ -220,19 +208,7 @@ export default function Dashboard({ user }: { user: { id: string; email: string 
     </section>
     <div className="grid items-start gap-5 lg:grid-cols-[280px_1fr]">
       <aside className="space-y-5">
-        <section className="panel p-4 sm:p-5">
-          <h2 className="mb-4 text-base font-semibold">Add a task</h2>
-          <form onSubmit={addTask} className="space-y-3 text-sm text-slate-300">
-            <label className="block">Task name<input className={`${control} mt-1.5`} name="name" required maxLength={200} placeholder="e.g. Problem set 4" /></label>
-            <label className="block">Due date and time<input className={`${control} mt-1.5`} name="dueAt" type="datetime-local" required /></label>
-            <p className="text-xs text-slate-400">Times use your browser’s timezone{ready ? ` (${Intl.DateTimeFormat().resolvedOptions().timeZone})` : ""}.</p>
-            <label className="block">Category<select className={`${control} mt-1.5`} name="category">{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
-            <label className="block">Useful URLs <span className="text-xs text-slate-400">(optional)</span><textarea className={`${control} mt-1.5`} name="urls" rows={2} placeholder="https://…" /></label>
-            {formError && <p role="alert" className="text-sm text-red-300">{formError}</p>}
-            <button className={`${button} w-full`} disabled={!ready || saving} type="submit">{saving && !importing ? "Saving…" : "Add task"}</button>
-            {notice && <p role="status" className="text-xs text-blue-200">{notice}</p>}
-          </form>
-        </section>
+        <TaskCreator tasks={tasks} disabled={!ready || saving} onAnalyze={analyzeScreenshot} onSaveTask={saveCreatedTask} />
         <section className="panel p-4 sm:p-5">
           <h2 className="mb-2 text-base font-semibold">Import a calendar</h2>
           <p className="mb-4 text-xs leading-relaxed text-slate-400">New Canvas assignments start today. Import again to refresh deadlines and keep your statuses.</p>

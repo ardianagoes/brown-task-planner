@@ -5,6 +5,7 @@ import { PGlite } from "@electric-sql/pglite";
 import { parseFeed } from "../lib/ics";
 import { canvasImportWindow } from "../lib/import-policy";
 import { toTaskRow } from "../lib/task-store";
+import { taskFromDraft } from "../lib/assignment-draft";
 
 const db = new PGlite();
 const alice = "11111111-1111-4111-8111-111111111111";
@@ -168,6 +169,29 @@ test("DATE-only rows retain their date and require exactly one deadline represen
     assert.deepEqual(row.rows[0], { due_date: "2026-10-08", due_at: null });
     await assert.rejects(importTasks([task("double-date", { due_date: "2026-10-08" })]), /check constraint/);
   });
+});
+
+test("confirmed screenshot tasks persist through the manual-create conflict policy with RLS and correct deadlines", async () => {
+  const draft = { name: "Screenshot project", dueDate: "2026-10-12", dueTime: "23:59", timezone: "America/New_York",
+    category: "Homework" as const, urls: "https://example.edu/assignment", allDay: false };
+  const timed = taskFromDraft(draft, "screenshot-timed");
+  const dateOnly = taskFromDraft({ ...draft, allDay: true }, "screenshot-day");
+  await asUser(alice, async () => {
+    for (const task of [timed, dateOnly, { ...timed, name: "Retry must not overwrite" }]) {
+      const row = toTaskRow(task, alice);
+      await db.query(`insert into public.tasks(user_id,id,name,due_at,due_date,category,status,urls,source)
+        values($1,$2,$3,$4,$5,$6,$7,$8,$9) on conflict(user_id,id) do nothing`,
+        [row.user_id, row.id, row.name, row.due_at, row.due_date, row.category, row.status, row.urls, row.source]);
+    }
+    const rows = await db.query<{ id: string; name: string; due_at: string | null; due_date: string | null; source: string; status: string }>(
+      "select id,name,due_at::text,due_date::text,source,status from public.tasks where id like 'screenshot-%' order by id");
+    assert.equal(rows.rows.length, 2);
+    assert.equal(rows.rows[0].due_date, "2026-10-12"); assert.equal(rows.rows[0].due_at, null);
+    assert.equal(Date.parse(rows.rows[1].due_at!), Date.parse("2026-10-13T03:59:00Z"));
+    assert.equal(rows.rows[1].name, "Screenshot project");
+    for (const row of rows.rows) { assert.equal(row.source, "Manual"); assert.equal(row.status, "To Do"); }
+  });
+  assert.equal((await asUser(bob, () => db.query("select id from public.tasks where id like 'screenshot-%'"))).rows.length, 0);
 });
 
 test("durable import limits are per-user and cannot be reset by ordinary clients", async () => {

@@ -11,20 +11,24 @@
     "test:smoke": "node scripts/smoke.cjs"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "^0.5.1",
     "@supabase/ssr": "^0.12.7",
     "@supabase/supabase-js": "^2.117.2",
     "ipaddr.js": "^2.2.0",
     "next": "^16.3.8",
     "node-ical": "^0.27.3",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "sharp": "^0.35.5"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.8",
     "@tailwindcss/postcss": "^4.1.0",
+    "@types/jsdom": "^27.0.0",
     "@types/node": "^24.0.0",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
+    "jsdom": "^27.4.0",
     "tailwindcss": "^4.1.0",
     "tsx": "^4.20.0",
     "typescript": "^5.9.0"

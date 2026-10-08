@@ -39,7 +39,7 @@ export function relativeDate(expression: string, reference: string): string | nu
   return null;
 }
 export function parseExtraction(value: unknown, referenceDate: string, referenceTimezone: string): Extraction {
-  const invalid = () => new Error("Invalid AI assignment details");
+  const invalid = () => new Error("Invalid extracted assignment details");
   const notesValid = (notes: unknown): notes is string[] => Array.isArray(notes) && notes.length <= 8 && notes.every(note => typeof note === "string" && note.length <= 300);
   if (!value || typeof value !== "object" || Array.isArray(value)) throw invalid();
   const data = value as Record<string, unknown>;

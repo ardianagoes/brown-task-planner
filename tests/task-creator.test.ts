@@ -145,7 +145,7 @@ test("possible duplicate warning requires opt-in; saving never overwrites the ex
   assert.equal(saved.length, 1); assert.notEqual(saved[0].id, existing.id); assert.equal(existing.name, candidate().name);
 });
 
-test("failed analysis retains screenshot and supports retry; failed save retains review and reuses ID", async () => {
+test("failed OCR opens a blank editable review; retry and failed saves keep image and safe retry ID", async () => {
   let analyses = 0; const attempts: Task[] = [];
   await mount({
     onAnalyze: async () => { if (++analyses === 1) throw new Error("Analysis unavailable"); return extraction(); },
@@ -153,11 +153,21 @@ test("failed analysis retains screenshot and supports retry; failed save retains
   });
   await upload(); await analyze();
   assert.match(query('[role="alert"]').textContent!, /Analysis unavailable/); assert.ok(container.querySelector("img"));
-  await analyze(); await submit();
+  assert.ok(container.querySelector("form")); assert.equal(query<HTMLInputElement>('input[name="dueDate"]').value, "");
+  await click(button("Try Again")); await analyze(); await submit();
   assert.match(query('[role="alert"]').textContent!, /Storage unavailable/);
   assert.ok(container.querySelector("img")); assert.ok(container.querySelector("form"));
   await submit(); assert.equal(attempts.length, 2); assert.equal(attempts[0].id, attempts[1].id);
   assert.equal(container.querySelector("img"), null);
+});
+
+test("after complete OCR failure, manual correction in the same review can be confirmed without restarting", async () => {
+  const { saved } = await mount({ onAnalyze: async () => { throw new Error("OCR unavailable"); } });
+  await upload(); await analyze();
+  assert.equal(saved.length, 0);
+  await setValue("name", "Corrected task"); await setValue("dueDate", "2027-01-17");
+  await click(query<HTMLInputElement>('input[type="checkbox"][required]')); await submit();
+  assert.equal(saved[0].name, "Corrected task"); assert.equal(saved[0].dueAt, "2027-01-17");
 });
 
 test("manual entry remains available and image paste is ignored outside screenshot mode", async () => {

@@ -4,7 +4,6 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation";
 import { browserClient } from "@/lib/supabase/client";
 import { deadlineMillis, isTask, type Category, type Status, type Task } from "@/lib/tasks";
-import { parseExtraction, validCalendarDate, validTimezone } from "@/lib/assignment-draft";
 import TaskWorkspace from "./task-workspace";
 import TaskCreator from "./task-creator";
 
@@ -12,7 +11,7 @@ const STORAGE_KEY = "deadline-desk.tasks.v1";
 const control = "control";
 const button = "button-primary";
 
-export default function Dashboard({ user }: { user: { id: string; email: string } }) {
+export default function Dashboard({ user, timezone }: { user: { id: string; email: string }; timezone: string }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [ready, setReady] = useState(false);
@@ -90,15 +89,6 @@ export default function Dashboard({ user }: { user: { id: string; email: string 
     return delta >= 0 && delta <= 48 * 3600000;
   }).length;
   const overdue = active.filter(task => deadlineMillis(task) < now).length;
-
-  async function analyzeScreenshot(file: File) {
-    const body = new FormData(); body.set("image", file);
-    const result = await apiRequest("/api/tasks/extract-image", { method: "POST", body, signal: AbortSignal.timeout(40000) });
-    const extraction = result.extraction;
-    if (!extraction || typeof extraction.referenceDate !== "string" || !validCalendarDate(extraction.referenceDate) ||
-      typeof extraction.referenceTimezone !== "string" || !validTimezone(extraction.referenceTimezone)) throw new Error("Could not validate the detected task details.");
-    return parseExtraction({ candidates: extraction.candidates, notes: extraction.notes }, extraction.referenceDate, extraction.referenceTimezone);
-  }
 
   async function saveCreatedTask(task: Task) {
     if (busy.current) throw new Error("Another save is in progress. Try again.");
@@ -208,7 +198,7 @@ export default function Dashboard({ user }: { user: { id: string; email: string 
     </section>
     <div className="grid items-start gap-5 lg:grid-cols-[280px_1fr]">
       <aside className="space-y-5">
-        <TaskCreator tasks={tasks} disabled={!ready || saving} onAnalyze={analyzeScreenshot} onSaveTask={saveCreatedTask} />
+        <TaskCreator tasks={tasks} disabled={!ready || saving} timezone={timezone} onSaveTask={saveCreatedTask} />
         <section className="panel p-4 sm:p-5">
           <h2 className="mb-2 text-base font-semibold">Import a calendar</h2>
           <p className="mb-4 text-xs leading-relaxed text-slate-400">New Canvas assignments start today. Import again to refresh deadlines and keep your statuses.</p>

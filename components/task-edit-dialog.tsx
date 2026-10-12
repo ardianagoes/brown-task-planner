@@ -7,7 +7,8 @@ import { draftFromTask, taskFromEditDraft } from "@/lib/task-editing";
 export default function TaskEditDialog({ task, tasks, disabled, onSave, onClose }: {
   task: Task; tasks: readonly Task[]; disabled?: boolean; onSave: (task: Task) => Promise<void>; onClose: () => void;
 }) {
-  const [initial] = useState(() => draftFromTask(task));
+  const [original] = useState(task);
+  const [initial] = useState(() => draftFromTask(original));
   const [draft, setDraft] = useState(initial), [status, setStatus] = useState(task.status);
   const [saving, setSaving] = useState(false), [error, setError] = useState(""), [allowDuplicate, setAllowDuplicate] = useState(false);
   const active = useRef(false), dialog = useRef<HTMLDialogElement>(null), title = useId();
@@ -19,13 +20,13 @@ export default function TaskEditDialog({ task, tasks, disabled, onSave, onClose 
   }, []);
   const update = (patch: Partial<AssignmentDraft>) => { setDraft(previous => ({ ...previous, ...patch })); setAllowDuplicate(false); setError(""); };
   const duplicate = useMemo(() => {
-    try { return possibleDuplicate(tasks.filter(item => item.id !== task.id), taskFromEditDraft(draft, status, task, initial)); } catch { return false; }
-  }, [tasks, task, draft, initial, status]);
+    try { return possibleDuplicate(tasks.filter(item => item.id !== original.id), taskFromEditDraft(draft, status, original, initial)); } catch { return false; }
+  }, [tasks, original, draft, initial, status]);
   async function submit(event: FormEvent) {
     event.preventDefault(); if (active.current || disabled) return;
     setError("");
     try {
-      const edited = taskFromEditDraft(draft, status, task, initial);
+      const edited = taskFromEditDraft(draft, status, original, initial);
       if (duplicate && !allowDuplicate) throw new Error("Confirm that you want this task to match another task.");
       active.current = true; setSaving(true); await onSave(edited); onClose();
     } catch (error) { setError(error instanceof Error ? error.message : "Could not save changes. Try again."); }

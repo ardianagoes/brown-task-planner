@@ -22,7 +22,7 @@ Branch: `codex/gpt-screenshot-and-task-editing`, based on latest main
 ## Checks
 
 - `npm run typecheck`: passed.
-- `npm test`: **61 tests passed**, no skipped/failed tests.
+- `npm test`: **62 tests passed**, no skipped/failed tests.
 - `npm run build`: passed using the configured supported Webpack mode.
 - `npm run test:smoke`: passed against the development server, including extraction
   authentication, foreign/missing origins, full edit authentication and obsolete
@@ -51,8 +51,9 @@ retained drafts, stable retry IDs and rapid Analyze double-click prevention.
 
 Editing tests verify prefilled fields, exact deadline preservation for detail-only
 edits, all-day/timed switching, DST correction, all three entry points, Cancel/Escape,
-failed-save retention, single in-flight updates and source/ID preservation. The
-server helper is tested for strict writable fields, owner/ID scoping, nulling the
+failed-save retention, single in-flight updates and source/ID preservation.
+Open edit forms retain their visible deadline across background task refreshes.
+The server helper is tested for strict writable fields, owner/ID scoping, nulling the
 opposite deadline column, not-found handling and absence of upserts. Existing
 PostgreSQL/PGlite tests verify RLS, task persistence and database date constraints.
 

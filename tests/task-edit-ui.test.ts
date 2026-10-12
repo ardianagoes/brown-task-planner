@@ -66,6 +66,14 @@ test("date and time input events save the displayed deadline when switching all-
   await field("dueDate", "2026-10-21"); await field("dueTime", "22:00"); await field("timezone", "America/New_York"); await submit();
   assert.equal(saved[0].allDay, false); assert.equal(saved[0].dueAt, "2026-10-22T02:00:00Z");
 });
+test("background refresh cannot silently substitute a deadline different from the visible edit form", async () => {
+  const saved: Task[] = [], onSave = async (task: Task) => { saved.push(task); }, onClose = () => {};
+  await mount(onSave, onClose);
+  const refreshed = { ...task, dueAt: "2026-10-30" };
+  await act(async () => root.render(createElement(Edit, { task: refreshed, tasks: [refreshed], onSave, onClose })));
+  await field("name", "Visible edited title"); await submit();
+  assert.equal(saved[0].dueAt, "2026-10-20"); assert.equal(saved[0].name, "Visible edited title");
+});
 test("Edit is available in Active, Completed and calendar day details", async () => {
   const today = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-${String(new Date().getDate()).padStart(2, "0")}`;
   const active = { ...task, dueAt: today }, done = { ...task, id: "done", name: "Done homework", dueAt: today, status: "Submitted/Done" as const };

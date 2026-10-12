@@ -10,6 +10,12 @@ export type Candidate = {
 };
 export type Extraction = { candidates: Candidate[]; notes: string[]; referenceDate: string; referenceTimezone: string };
 export type AssignmentDraft = { name: string; dueDate: string; dueTime: string; timezone: string; category: Category; urls: string; allDay: boolean };
+export function blankExtraction(timezone = "America/New_York", now = new Date()): Extraction {
+  return { referenceDate: referenceDay(now, timezone), referenceTimezone: timezone, notes: [], candidates: [{
+    name: null, dueDate: null, dueTime: null, timezone: null, category: "Homework", usefulUrl: null,
+    uncertainFields: ["name", "dueDate"], notes: ["Fill in or correct the task details before saving."], dateKind: "unknown", dateExpression: null,
+  }] };
+}
 export function validCalendarDate(value: string): boolean {
   try { return /^\d{4}-\d{2}-\d{2}$/.test(value) && Temporal.PlainDate.from(value).toString() === value; }
   catch { return false; }

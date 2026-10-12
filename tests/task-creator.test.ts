@@ -145,7 +145,7 @@ test("possible duplicate warning requires opt-in; saving never overwrites the ex
   assert.equal(saved.length, 1); assert.notEqual(saved[0].id, existing.id); assert.equal(existing.name, candidate().name);
 });
 
-test("failed OCR opens a blank editable review; retry and failed saves keep image and safe retry ID", async () => {
+test("failed analysis opens a blank editable review; explicit retry and failed saves keep image and safe retry ID", async () => {
   let analyses = 0; const attempts: Task[] = [];
   await mount({
     onAnalyze: async () => { if (++analyses === 1) throw new Error("Analysis unavailable"); return extraction(); },
@@ -161,7 +161,7 @@ test("failed OCR opens a blank editable review; retry and failed saves keep imag
   assert.equal(container.querySelector("img"), null);
 });
 
-test("after complete OCR failure, manual correction in the same review can be confirmed without restarting", async () => {
+test("after analysis failure, manual correction in the same review can be confirmed without restarting", async () => {
   const { saved } = await mount({ onAnalyze: async () => { throw new Error("OCR unavailable"); } });
   await upload(); await analyze();
   assert.equal(saved.length, 0);
@@ -177,6 +177,15 @@ test("manual entry remains available and image paste is ignored outside screensh
   await setValue("name", "Manual task"); await setValue("dueAt", "2026-10-15T17:00"); await submit();
   assert.equal(saved.length, 1); assert.equal(saved[0].name, "Manual task"); assert.equal(saved[0].allDay, false);
   assert.equal(analyzed.length, 0);
+});
+test("rapid Analyze clicks make one paid analysis attempt and never save or automatically retry", async () => {
+  let calls = 0, finish!: (value: Extraction) => void;
+  const { saved } = await mount({ onAnalyze: async () => { calls++; return await new Promise<Extraction>(resolve => { finish = resolve; }); } });
+  await upload();
+  await act(async () => { const target = button("Analyze Screenshot"); target.dispatchEvent(new MouseEvent("click", { bubbles: true })); target.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+  assert.equal(calls, 1); assert.equal(saved.length, 0);
+  await act(async () => finish(extraction([candidate({ dueDate: null, dateKind: "unknown" })])));
+  assert.equal(calls, 1); assert.equal(saved.length, 0); assert.ok(container.querySelector("form"));
 });
 
 test("review can switch from all-day to a timed deadline with editable timezone", async () => {

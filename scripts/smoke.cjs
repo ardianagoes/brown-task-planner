@@ -7,7 +7,7 @@ const origin = new URL(process.env.SMOKE_APP_URL || 'http://127.0.0.1:3000').ori
   const task = await fetch(origin + '/api/tasks');
   assert.equal(task.status, 401);
   assert.match(task.headers.get('cache-control'), /no-store/);
-  for (const endpoint of ['/api/tasks','/api/import','/api/tasks/migrate','/auth/signout']) {
+  for (const endpoint of ['/api/tasks','/api/import','/api/tasks/migrate','/api/tasks/extract-image','/auth/signout']) {
     const signedOut = await fetch(origin + endpoint, { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: '{}' });
     assert.equal(signedOut.status, 401, endpoint);
     const foreign = await fetch(origin + endpoint, { method: 'POST', headers: { Origin: 'https://evil.example', 'Content-Type': 'application/json' }, body: '{}' });
@@ -25,13 +25,10 @@ const origin = new URL(process.env.SMOKE_APP_URL || 'http://127.0.0.1:3000').ori
     assert.match(deletion.headers.get('cache-control'), /no-store/);
   }
   const reset = await fetch(origin + '/auth/reset', { redirect: 'manual' });
-  const removed = await fetch(origin + '/api/tasks/extract-image', { method: 'POST', headers: { Origin: origin } });
-  assert.ok([404, 405].includes(removed.status), 'Paid extraction POST handler removed');
-  for (const asset of ['/ocr-runner.js', '/ocr/worker.min.js', '/ocr/tesseract.min.js', '/ocr/eng.traineddata.gz']) {
-    const localAsset = await fetch(origin + asset, { method: 'HEAD' });
-    assert.equal(localAsset.status, 200, asset);
-    assert.match(localAsset.headers.get('content-security-policy'), /connect-src 'self'/);
-  }
+  const fullEdit = await fetch(origin + '/api/tasks/test', { method: 'PATCH', headers: { Origin: origin, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: 'Edited task', dueAt: '2026-10-20', allDay: true, category: 'Homework', status: 'In Progress', urls: [] }) });
+  assert.equal(fullEdit.status, 401, 'Full task edit requires authentication');
+  assert.equal((await fetch(origin + '/ocr-runner.js')).status, 404, 'Obsolete OCR worker removed');
   assert.equal(reset.status, 307);
   assert.equal(new URL(reset.headers.get('location'), origin).pathname, '/login');
   const callback = await fetch(origin + '/auth/callback?next=https://evil.example', { redirect: 'manual' });

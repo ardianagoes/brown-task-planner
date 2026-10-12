@@ -38,6 +38,8 @@ npm run dev
 
 Open <http://127.0.0.1:3000>. In Windows PowerShell, use `npm.cmd` if execution
 policy blocks `npm.ps1`. A current Node.js LTS release with Node 20.9+ is required.
+Development/build scripts use Next's supported Webpack mode to avoid Windows
+sandbox junction failures when loading the native screenshot image decoder.
 
 For a new checkout only, copy `.env.example` to `.env.local` first:
 
@@ -52,6 +54,8 @@ Copy-Item .env.example .env.local
 | `NEXT_PUBLIC_APP_URL` | Exact public origin: local HTTP for development, HTTPS in production |
 | `ICS_ALLOWED_HOSTS` | Optional comma-separated exact school/exporter hostnames |
 | `APP_TIMEZONE` | Timezone for screenshot relative dates, floating ICS timestamps and the Canvas import date cutoff; defaults to `America/New_York` |
+| `OPENAI_API_KEY` | Server-only OpenAI project API key |
+| `OPENAI_IMAGE_MODEL` | Server-only image/structured-output model; defaults to `gpt-5.4-mini` |
 
 This application requires no service-role key or database password. Public variables
 are compiled into the browser bundle; changing them requires a new production build.
@@ -107,85 +111,103 @@ in the browser. Manual-save retries reuse the same task ID to avoid duplicates.
 
 ## Screenshot task creation
 
-**Paste Screenshot** is the default Add a task tab. Capture an assignment with
-Windows **Win + Shift + S**, then **Ctrl + V** in the dashboard. Dropping an
-image and selecting a file also work. PNG, JPEG and WebP are accepted up to 3 MB.
-Pasting into ordinary text fields keeps its normal behavior. The image preview
-stays visible during review and supports replacement/removal. **Manual Entry**
-remains available.
+**Paste Screenshot** remains the default tab. Use Ctrl + V with a Windows Snipping
+Tool capture, drag/drop, or upload one PNG/JPEG/WebP up to 3 MB. Preview and
+replace/remove controls remain available; Manual Entry works without an AI key.
 
-Click **Analyze Screenshot** to run free, English-language **Tesseract.js 7 OCR
-entirely in your browser**. A progress bar shows engine loading and recognition;
-Cancel OCR stops the job and opens an editable review. No screenshot or raw OCR
-transcript is sent to an OCR service, this application's server, or an AI provider.
-There is no AI API key, subscription, service configuration or OCR charge.
+Only **Analyze Screenshot** uploads the image for external processing by OpenAI.
+The authenticated server uses the Responses API, image input and strict structured
+JSON. No platform branding is required: the model reads task facts from any
+website, discussion, email, PDF, syllabus, schedule or application page.
+Screenshot contents are untrusted data, never instructions. The model has no tools.
 
-The app decodes actual image bytes locally, checks MIME/signatures and dimensions,
-resizes to at most 2400 × 2400 (enlarging small captures up to 2× for readability),
-and sends normalized pixels to a dedicated browser worker. Images over 16 million
-input pixels are rejected. Workers terminate after success, failure, cancellation
-or a 90-second OCR timeout. Screenshots are never written to localStorage,
-IndexedDB, Supabase or application logs. Screenshot and OCR-result memory is
-discarded on replacement/removal/success or leaving the page.
+Review and edit the name, date, time, timezone, category and complete useful URLs.
+Multiple candidates (up to five) require selecting one. **Add Assignment** is the
+only action that saves a task, through the existing Supabase API. Uncertain fields,
+relative dates and inferred years require review. Missing dates stay blank; missing
+times stay all-day, never automatically 11:59 PM. “Before midnight” stays flagged
+when its intended calendar boundary is unclear. Relative dates use the server's
+actual current date in APP_TIMEZONE (default America/New_York), shown in the form.
+Posted/available/submission timestamps are distinguished from actual deadlines.
+Partial URLs are never reconstructed.
 
-Plain JavaScript parses OCR text using general deadline labels and date formats,
-without platform-specific rules. Canvas, Gradescope, discussion posts, email,
-syllabus/PDF screenshots and other sites/apps use the same path. This is OCR plus
-heuristics, not semantic AI: tiny/blurry text, unusual layouts, unsupported
-wording and unlabeled dates may need correction. Crop to one clear task when
-possible. English text and numeric/month-name date formats work best.
+Failed analysis opens a blank editable review with the image retained. Try Again
+requires another explicit Analyze click; there are no automatic paid retries.
+Failed saves retain the draft and reuse its task ID on an unchanged retry.
+Duplicate name/deadline matches need explicit confirmation. Dates, timezone
+conversion, DST checks and all-day storage retain their existing behavior.
 
-The editable preview supports name, date, time, timezone, category and URLs.
-OCR failure or no recognized deadline opens this same form with blank/uncertain
-fields; fill them in without restarting. Only **Add Assignment** saves through
-the existing Supabase task API, with `Manual` / `To Do` and a unique task ID.
-No task is saved during OCR. Duplicate name/deadline matches require explicit
-confirmation. Failed saves retain the draft and reuse the same ID on an unchanged
-retry. Successful saves clear the image. Multiple detected tasks (up to five)
-require selecting one; each screenshot review saves one confirmed task.
+### Server setup, privacy and costs
 
-### Dates, uncertainty and local assets
+Add these server-only settings to your existing .env.local and Vercel environment,
+then restart/redeploy. Never use NEXT_PUBLIC_ for these values:
 
-- Month-name dates, ISO YYYY-MM-DD, unambiguous numeric dates, AM/PM and 24-hour
-  times are supported. For example: “Due Oct 15 at 11:59 PM” or “Deadline:
-  10/15/2026.” Ambiguous numeric formats such as 10/11/2026 stay blank.
-- Relative dates such as tomorrow, Friday, tonight or in three days use the
-  browser's current date in server-configured `APP_TIMEZONE` (default
-  `America/New_York`). The reference date/timezone appears in the review.
-  Relative dates and suggested missing years require confirmation; old screenshots
-  can refer to another date. Browser clock accuracy matters.
-- Missing/conflicting deadlines remain blank. Posted/available/meeting dates
-  are excluded from labeled-deadline matching. Missing times stay unspecified,
-  never automatically 11:59 PM. Ambiguous times such as midnight stay blank.
-- Date-only tasks stay all-day with literal YYYY-MM-DD. Timed tasks retain the
-  existing IANA-zone/offset-to-UTC conversion and DST checks. Check timezone
-  suggestions before saving; explicit EST/EDT use their fixed UTC offsets.
-- Categories are keyword suggestions from the task context and are editable.
-  Low OCR confidence and missing/uncertain fields are flagged. Only complete
-  visible HTTP(S) links are suggested; truncated links are ignored.
+```dotenv
+OPENAI_API_KEY=your_project_api_key
+OPENAI_IMAGE_MODEL=gpt-5.4-mini
+APP_TIMEZONE=America/New_York
+```
 
-OCR assets are **served from this app**, never a third-party CDN. The API library,
-worker, all WebAssembly engine variants, English LSTM traineddata and license
-notices are copied from locked npm packages into `public/ocr/` by
-`scripts/prepare-ocr.cjs`. Generated assets are ignored by Git and recreated by
-`npm ci`/postinstall, `npm run dev`, `npm test` and `npm run build`.
-No external network download occurs during this copy step; dependency installation
-uses npm as usual. Vercel's normal install/build automatically bundles these local
-assets. Custom build commands must run the preparation script before Next builds.
+Use an OpenAI API project with billing/quota and access to the model. No
+service-role key or SQL migration is required. The default
+[GPT-5.4 mini](https://developers.openai.com/api/docs/models/gpt-5.4-mini)
+supports image input and structured outputs. Model configuration must support
+these features and reasoning.effort=none.
 
-The first analysis downloads several MB of engine/language assets from your app;
-the browser can cache these public files. No user screenshots are cached by OCR.
-Tesseract's IndexedDB language cache is disabled. Worker-specific Content Security
-Policy restricts script, worker and network access to the same origin; missing
-assets fail into manual review rather than falling back to a CDN. These paths and
-options follow the [Tesseract local installation documentation](https://github.com/naptha/tesseract.js/blob/master/docs/local-installation.md).
+Each explicit Analyze normally makes one paid request: high image detail for
+small text, no reasoning, at most 2,400 output tokens, a concise structured prompt,
+no tools, no automatic retries. The server checks session identity with getUser(),
+rejects missing/foreign origins, bounds streamed multipart input, fully decodes
+actual static PNG/JPEG/WebP content, strips metadata, and resizes oversized images
+to at most 2048 × 2048 without enlarging small captures. Input is limited to
+16 million pixels; upload reading times out after 10 seconds and image processing
+after 5 seconds. The provider timeout is 20 seconds and route budget 45 seconds.
+Crop to the relevant task so text remains legible and unrelated details are excluded.
 
-**No new SQL or environment variables are needed.** The paid server extraction
-route and OpenAI code are removed. Old `OPENAI_API_KEY` and
-`OPENAI_IMAGE_MODEL` entries can be deleted from local/Vercel settings; the app
-no longer reads them. Keep your existing Supabase, canonical URL, ICS allowlist
-and `APP_TIMEZONE` values. Redeploy/rebuild Vercel for the free OCR replacement.
-OCR no longer consumes Supabase import rate slots; existing ICS limits are unchanged.
+The existing durable consume_import_slot() RPC limits screenshot analyses and ICS
+imports to ten attempts per account per ten minutes across server instances.
+Invalid decoded images and failed provider requests consume a slot. Limiter
+failure blocks analysis. This is a rate limit, not an account spending cap.
+Double-click protection prevents duplicate requests from this UI. Cancelling
+analysis stops waiting locally; a request already sent may still finish and cost
+money. An uncertain result never starts another request automatically.
+
+Check your project's [Usage dashboard](https://platform.openai.com/usage).
+In project settings → Limits → Spend, set a small monthly limit such as $5,
+enable **Enforce a hard limit**, and configure alerts below it. Alerts alone do
+not stop requests, and enforcement can lag slightly. Follow the official
+[spend controls guide](https://developers.openai.com/api/docs/guides/spend-limits).
+Image tokens and actual output determine cost; the controls above limit request
+work but do not guarantee a fixed price.
+
+Images exist only in transient browser/server memory; no screenshot or base64
+payload is saved to Supabase, local storage, disk or application logs. The provider
+request sets store:false. [OpenAI retention policies](https://developers.openai.com/api/docs/guides/your-data)
+still apply; this setting is not a promise of zero retention. Only confirmed task
+fields persist in Supabase. Exclude screenshot bodies from custom hosting logs.
+Tesseract dependencies, worker, generated assets and preparation scripts are removed.
+
+## Edit existing tasks
+
+Select **Edit** in the Active list, Completed list or expanded calendar day details.
+The accessible dark modal prepopulates name, date/time, all-day setting, category,
+status and URLs. Source is read-only. Save Changes updates the same owned task;
+Cancel/Escape makes no request. Fields stay in the modal if validation/storage
+fails, with an explicit retry. No optimistic removal or duplicate task creation occurs.
+
+Timed values display in the browser timezone (editable in the modal) and save as
+UTC; all-day values retain their literal date. Detail-only edits preserve exact
+deadline seconds and offsets. Switching to timed requires a time; changing a
+deadline through an ambiguous/nonexistent DST time requires correction or an
+explicit UTC offset. Duplicate warnings exclude the task being edited.
+
+The PATCH endpoint accepts only editable fields or the existing status-only body.
+IDs, owner, source, created_at and unknown fields are rejected. Every update checks
+getUser(), origin and RLS, and scopes both user_id and task ID. List/category counts,
+sorting, urgency and calendar placement update after a successful save. Completed
+tasks remain available through their existing views. Feed imports retain existing
+behavior: reimport can refresh an imported task's name/deadline/URLs, while status
+and category remain preserved.
 
 ## File structure
 
@@ -198,7 +220,7 @@ app/
   auth/reset/page.tsx         authenticated password reset
   auth/signout/route.ts       same-origin sign-out
   api/tasks/route.ts          read/create tasks
-  api/tasks/[id]/route.ts     change status or delete an owned task
+  api/tasks/[id]/route.ts     edit/status/delete an owned task
   api/tasks/migrate/route.ts  atomic browser-backup migration
   api/import/route.ts         authenticated ICS import
 components/
@@ -206,6 +228,7 @@ components/
   task-creator.tsx             screenshot/manual tabs, candidates and retry identity
   screenshot-input.tsx         local clipboard/drop/upload preview
   task-review-form.tsx         editable confirmation and duplicate warnings
+  task-edit-dialog.tsx         existing-task edit modal
   manual-task-form.tsx         preserved manual input flow
   task-workspace.tsx          view switch, category/sort filters and completion tabs
   task-row.tsx                full task information and useful links
@@ -225,19 +248,17 @@ lib/
   import-policy.ts            timezone-aware Canvas date cutoff
   task-workflow.ts            list/calendar filtering and status transitions
   assignment-draft.ts         extracted-field validation and draft/date conversion
+  task-editing.ts             safe edit fields and existing-deadline conversion
   image-limits.ts             local image type/size limits
-  browser-ocr.ts              local image decode, worker lifecycle and progress
-  ocr-parser.ts               general text/date/category parsing
-public/ocr-runner.js           browser worker controller using Tesseract's API
-public/ocr/                    generated local engine/worker/language assets
-next.config.ts                OCR-worker same-origin security policy
+  image-upload.ts             bounded upload reading and real image normalization
+  image-extraction.ts         authenticated/rate-limited screenshot orchestration
+  openai-image.ts             Responses image request and strict JSON validation
 proxy.ts                      cookie refresh and private cache headers
 instrumentation.ts            server timezone initialization
 supabase/migrations/           authoritative production SQL
 supabase/schema.sql            pointer to the migration (executes no SQL)
 tests/                        core, request and PostgreSQL/RLS tests
-scripts/smoke.cjs              live signed-out HTTP and local OCR asset checks
-scripts/prepare-ocr.cjs        reproducible local OCR asset bundling
+scripts/smoke.cjs              live signed-out HTTP and origin checks
 .env.example
 VERIFICATION.md
 ```
@@ -321,8 +342,8 @@ provided by your institution or exporter; a course page URL does not work.
 1. Apply the SQL above and complete the local sign-in/task checks below.
 2. Push this project directory to your Git repository and import it into Vercel as
    a Next.js project. This repository has its application at the repository root.
-3. Set the environment variables from the table. Screenshot OCR needs no external
-   service or API key. Production
+3. Set the environment variables from the table. Screenshot analysis needs the server-only
+   OpenAI settings above. Production
    `NEXT_PUBLIC_APP_URL` must be the exact HTTPS origin you will open, with no path.
    Origin validation deliberately rejects alternate preview domains; configure
    each preview environment's own app URL and Supabase redirect allowlist.
@@ -349,13 +370,12 @@ date constraints and durable limits. Unit tests also cover Canvas calendar-date
 filtering across timezones, checkbox transitions and list/calendar filtering.
 They do not replace verification of the hosted Auth service.
 
-Screenshot tests cover browser workers and local asset paths, progress/cancellation,
-failure recovery, image signatures, clipboard/drop/upload handling, explicit
-confirmation, editable corrections, relative and ambiguous dates, all-day/timed
-deadlines, multiple candidates, duplicate warnings and retry IDs. OCR text parsing
-tests exercise samples from different sources without recognizing a platform.
-SQL tests still cover reviewed-task persistence, no overwrite on retries and RLS.
-The browser checks in VERIFICATION.md use real local OCR on sample screenshots.
+Screenshot tests mock all OpenAI requests without paid calls. They cover validated
+structured responses, image decoding/upload caps, auth/rate-limit boundaries,
+relative/uncertain deadlines, candidate selection, explicit confirmation and safe
+retries. Editing tests cover modal access, prepopulation, Save/Cancel, failures,
+duplicate submit protection, immutable fields and timezone/deadline conversion.
+Browser checks and any remaining hosted verification are recorded in VERIFICATION.md.
 
 Before merging or deploying, verify in your own signed-in browser:
 
@@ -367,9 +387,9 @@ Before merging or deploying, verify in your own signed-in browser:
 5. Exercise email confirmation and password reset with real email delivery.
 6. Check Active/Completed tabs, category filters, both status checkboxes, and compact
    calendar previews/day details on desktop and mobile.
-7. Paste real screenshots from several sources, run local OCR, correct uncertain
+7. Paste real screenshots from several sources, run GPT analysis, correct uncertain
    fields and explicitly save. Check the list/calendar and reload. Test date-only,
    relative, ambiguous and multi-task screenshots, duplicate warnings, and manual
-   recovery after OCR or storage failure. No AI configuration is required.
+   recovery after analysis or storage failure. Configure the server-only key first.
 
 See `VERIFICATION.md` for results and the remaining hosted checks.

@@ -2,6 +2,18 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, TaskRow } from "./supabase/database.types";
 import { isTask, type Task } from "./tasks";
 import { HttpError } from "./http";
+import { validateTaskUpdate } from "./task-editing";
+
+export async function updateOwnedTask(supabase: SupabaseClient<Database>, userId: string, id: string, body: unknown): Promise<Task> {
+  if (!id || id.length > 128) throw new HttpError(400, "Invalid task ID.");
+  const changes = validateTaskUpdate(body);
+  const update = "dueAt" in changes ? { name: changes.name.trim(), category: changes.category, status: changes.status, urls: changes.urls,
+    due_at: changes.allDay ? null : new Date(changes.dueAt).toISOString(), due_date: changes.allDay ? changes.dueAt : null } : changes;
+  const { data, error } = await supabase.from("tasks").update(update).eq("user_id", userId).eq("id", id).select().maybeSingle();
+  databaseError(error);
+  if (!data) throw new HttpError(404, "Task not found.");
+  return fromTaskRow(data);
+}
 
 export function toTaskRow(task: Task, userId: string): Omit<TaskRow, "created_at"> {
   return { user_id: userId, id: task.id, name: task.name.trim(),

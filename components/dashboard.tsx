@@ -4,6 +4,8 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation";
 import { browserClient } from "@/lib/supabase/client";
 import { deadlineMillis, isTask, type Category, type Status, type Task } from "@/lib/tasks";
+import { parseExtraction, validCalendarDate, validTimezone } from "@/lib/assignment-draft";
+import { taskChanges } from "@/lib/task-editing";
 import TaskWorkspace from "./task-workspace";
 import TaskCreator from "./task-creator";
 
@@ -89,6 +91,25 @@ export default function Dashboard({ user, timezone }: { user: { id: string; emai
     return delta >= 0 && delta <= 48 * 3600000;
   }).length;
   const overdue = active.filter(task => deadlineMillis(task) < now).length;
+
+  async function analyzeScreenshot(file: File, signal: AbortSignal) {
+    const body = new FormData(); body.set("image", file);
+    const result = await apiRequest("/api/tasks/extract-image", { method: "POST", body, signal: AbortSignal.any([signal, AbortSignal.timeout(45000)]) });
+    const extraction = result.extraction;
+    if (!extraction || !validCalendarDate(extraction.referenceDate) || !validTimezone(extraction.referenceTimezone)) throw new Error("Could not validate the detected task details.");
+    return parseExtraction({ candidates: extraction.candidates, notes: extraction.notes }, extraction.referenceDate, extraction.referenceTimezone);
+  }
+
+  async function editTask(task: Task) {
+    if (busy.current) throw new Error("Another save is in progress. Try again.");
+    if (!isTask(task)) throw new Error("Check the edited task details.");
+    busy.current = true; setSaving(true); ++readSequence.current;
+    try {
+      const result = await apiRequest(`/api/tasks/${encodeURIComponent(task.id)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(taskChanges(task)) });
+      if (!isTask(result.task) || result.task.id !== task.id || result.task.source !== task.source) throw new Error("Could not confirm the task changes.");
+      setTasks(previous => previous.map(item => item.id === task.id ? result.task : item)); setStorageError("");
+    } finally { busy.current = false; setSaving(false); }
+  }
 
   async function saveCreatedTask(task: Task) {
     if (busy.current) throw new Error("Another save is in progress. Try again.");
@@ -198,7 +219,7 @@ export default function Dashboard({ user, timezone }: { user: { id: string; emai
     </section>
     <div className="grid items-start gap-5 lg:grid-cols-[280px_1fr]">
       <aside className="space-y-5">
-        <TaskCreator tasks={tasks} disabled={!ready || saving} timezone={timezone} onSaveTask={saveCreatedTask} />
+        <TaskCreator tasks={tasks} disabled={!ready || saving} timezone={timezone} onAnalyze={analyzeScreenshot} onSaveTask={saveCreatedTask} />
         <section className="panel p-4 sm:p-5">
           <h2 className="mb-2 text-base font-semibold">Import a calendar</h2>
           <p className="mb-4 text-xs leading-relaxed text-slate-400">New Canvas assignments start today. Import again to refresh deadlines and keep your statuses.</p>
@@ -211,7 +232,7 @@ export default function Dashboard({ user, timezone }: { user: { id: string; emai
           <p className="mt-3 text-xs leading-relaxed text-slate-400">Gradescope needs an ICS feed from your institution or an exporter. A course page URL will not work.</p>
         </section>
       </aside>
-      <TaskWorkspace tasks={tasks} now={now} ready={ready} saving={saving} category={category} onCategoryChange={setCategory}
+      <TaskWorkspace tasks={tasks} onEditTask={editTask} now={now} ready={ready} saving={saving} category={category} onCategoryChange={setCategory}
         onStatusChange={changeStatus} onDeleteTask={deleteTask} hasError={Boolean(storageError)} onRetry={() => void loadTasks()} />
     </div>
   </main>;

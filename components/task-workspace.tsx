@@ -5,11 +5,12 @@ import { tasksForView, type TaskTab } from "@/lib/task-workflow";
 import CalendarView from "./calendar-view";
 import TaskRow from "./task-row";
 
-export default function TaskWorkspace({ tasks, now, ready, saving, category, onCategoryChange, onStatusChange, onDeleteTask, onRetry, hasError }: {
+export default function TaskWorkspace({ tasks, now, ready, saving, category, onCategoryChange, onStatusChange, onDeleteTask, onEditTask, onRetry, hasError }: {
   tasks: Task[]; now: number; ready: boolean; saving: boolean; category: Category | "All";
   onCategoryChange: (category: Category | "All") => void;
   onStatusChange: (id: string, status: Status) => void; onRetry: () => void; hasError: boolean;
   onDeleteTask: (id: string) => Promise<void>;
+  onEditTask: (task: Task) => Promise<void>;
 }) {
   const [view, setView] = useState<"list" | "calendar">("list");
   const [tab, setTab] = useState<TaskTab>("active");
@@ -53,12 +54,12 @@ export default function TaskWorkspace({ tasks, now, ready, saving, category, onC
       aria-labelledby={view === "list" ? `${id}-${tab}` : undefined} tabIndex={view === "list" ? 0 : undefined}>
       {!ready ? <div className="py-12 text-center"><p role="status" className="text-slate-400">{hasError ? "Tasks could not be loaded." : "Loading your account tasks…"}</p>
         {hasError && <button type="button" className="button-secondary mt-4" onClick={onRetry}>Retry</button>}</div> : view === "calendar" ?
-        <CalendarView tasks={visible} now={now} onStatusChange={onStatusChange} onDeleteTask={onDeleteTask} disabled={saving} /> :
+        <CalendarView tasks={visible} allTasks={tasks} now={now} onStatusChange={onStatusChange} onDeleteTask={onDeleteTask} onEditTask={onEditTask} disabled={saving} /> :
         visible.length === 0 ? <div className="rounded-xl border border-dashed border-slate-800 px-4 py-14 text-center">
           <p className="font-medium text-slate-200">{tab === "active" ? "You’re all caught up" : "No completed tasks in this view"}</p>
           <p className="mt-2 text-sm text-slate-400">{tab === "active" ? "Add a deadline, import a feed, or choose another category." : "Finished tasks stay here, with their dates and useful links."}</p>
         </div> : <ul className="space-y-3">{visible.map(task => <li key={task.id}>
-          <TaskRow task={task} now={now} disabled={saving} onStatusChange={onStatusChange}
+          <TaskRow task={task} tasks={tasks} onEditTask={onEditTask} now={now} disabled={saving} onStatusChange={onStatusChange}
             onDeleteTask={async id => { await onDeleteTask(id); listPanel.current?.focus(); }} />
         </li>)}</ul>}
     </div>

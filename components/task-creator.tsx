@@ -1,16 +1,14 @@
 "use client";
 import { useEffect, useId, useRef, useState } from "react";
 import type { Task } from "@/lib/tasks";
-import { stableSaveAttempt, type Extraction, type SaveAttempt } from "@/lib/assignment-draft";
+import { stableSaveAttempt, blankExtraction, type Extraction, type SaveAttempt } from "@/lib/assignment-draft";
 import ScreenshotInput from "./screenshot-input";
 import TaskReviewForm from "./task-review-form";
 import ManualTaskForm from "./manual-task-form";
-import { analyzeScreenshotLocally, type OcrProgress } from "@/lib/browser-ocr";
-import { emptyOcrExtraction } from "@/lib/ocr-parser";
 
 export default function TaskCreator({ tasks, disabled, timezone = "America/New_York", onAnalyze, onSaveTask }: {
   tasks: readonly Task[]; disabled: boolean; timezone?: string;
-  onAnalyze?: (file: File, progress: (value: OcrProgress) => void, signal: AbortSignal) => Promise<Extraction>;
+  onAnalyze: (file: File, signal: AbortSignal) => Promise<Extraction>;
   onSaveTask: (task: Task) => Promise<void>;
 }) {
   const [mode, setMode] = useState<"screenshot" | "manual">("screenshot");
@@ -18,7 +16,6 @@ export default function TaskCreator({ tasks, disabled, timezone = "America/New_Y
   const [extraction, setExtraction] = useState<Extraction | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
-  const [progress, setProgress] = useState<OcrProgress>({ percent: 0, label: "Preparing local OCR" });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -34,18 +31,17 @@ export default function TaskCreator({ tasks, disabled, timezone = "America/New_Y
   }
   async function analyze() {
     if (!file || disabled || active.current) return;
-    active.current = true; setAnalyzing(true); setError(""); setNotice(""); setProgress({ percent: 0, label: "Preparing local OCR" });
+    active.current = true; setAnalyzing(true); setError(""); setNotice("");
     const controller = new AbortController(); cancellation.current = controller;
     const current = ++sequence.current;
     try {
-      const report = (value: OcrProgress) => { if (current === sequence.current) setProgress(previous => ({ ...value, percent: Math.max(previous.percent, value.percent) })); };
-      const result = await (onAnalyze ? onAnalyze(file, report, controller.signal) : analyzeScreenshotLocally(file, timezone, report, controller.signal));
+      const result = await onAnalyze(file, controller.signal);
       if (current !== sequence.current) return;
       setExtraction(result); setSelected(result.candidates.length === 1 ? 0 : null);
     } catch (error) {
       if (current === sequence.current) {
-        setError(error instanceof Error ? error.message : "OCR failed. Enter the details below.");
-        setExtraction(emptyOcrExtraction(timezone)); setSelected(0);
+        setError(controller.signal.aborted ? "Analysis cancelled. You can fill in the details below." : error instanceof Error ? error.message : "Analysis failed. Enter the details below.");
+        setExtraction(blankExtraction(timezone)); setSelected(0);
       }
     } finally { active.current = false; cancellation.current = null; if (current === sequence.current) setAnalyzing(false); }
   }
@@ -75,12 +71,12 @@ export default function TaskCreator({ tasks, disabled, timezone = "America/New_Y
     <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-${mode}`}>
       {mode === "manual" ? <ManualTaskForm tasks={tasks} disabled={unavailable} onSave={save} /> : <>
         <ScreenshotInput file={file} enabled={!unavailable} onFileChange={changeFile} error={error} onError={setError} />
-        <p className="my-3 text-xs leading-relaxed text-slate-400">Free OCR runs entirely in your browser. Your screenshot stays on this device; only confirmed task details are saved.</p>
+        <p className="my-3 text-xs leading-relaxed text-slate-400">Analyze Screenshot sends this image to OpenAI, an external AI service. Deadline Desk does not store screenshots. Provider retention policies apply. Only confirmed task details are saved.</p>
         {!extraction && <button type="button" disabled={!file || unavailable} className="button-primary w-full" onClick={() => void analyze()}>
-          {analyzing ? "Reading screenshot…" : "Analyze Screenshot"}</button>}
+          {analyzing ? "Analyzing screenshot…" : "Analyze Screenshot"}</button>}
         {analyzing && <div role="status" className="mt-2 text-xs text-blue-200">
-          <p>{progress.label} · {progress.percent}%</p><progress aria-label="OCR progress" max={100} value={progress.percent} className="mt-2 h-2 w-full accent-blue-500" />
-          <button type="button" className="button-secondary mt-2" onClick={() => cancellation.current?.abort()}>Cancel OCR</button>
+          <p>Reading task names and deadlines with GPT…</p><progress aria-label="Screenshot analysis progress" className="mt-2 h-2 w-full accent-blue-500" />
+          <button type="button" className="button-secondary mt-2" onClick={() => cancellation.current?.abort()}>Cancel analysis</button>
         </div>}
         {extraction && <>
           <p className="mt-3 text-xs text-slate-400">Relative dates use {extraction.referenceDate} in {extraction.referenceTimezone}. Check older screenshots carefully.</p>

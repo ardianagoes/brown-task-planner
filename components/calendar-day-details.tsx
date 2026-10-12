@@ -3,10 +3,11 @@ import { useEffect, useId, useRef } from "react";
 import type { Status, Task } from "@/lib/tasks";
 import TaskRow from "./task-row";
 
-export default function CalendarDayDetails({ day, tasks, now, initialTaskId, disabled, onClose, onStatusChange, onDeleteTask }: {
+export default function CalendarDayDetails({ day, tasks, allTasks, now, initialTaskId, disabled, onClose, onStatusChange, onDeleteTask, onEditTask }: {
   day: string; tasks: Task[]; now: number; initialTaskId?: string; disabled?: boolean;
   onClose: () => void; onStatusChange: (id: string, status: Status) => void;
   onDeleteTask: (id: string) => Promise<void>;
+  allTasks: readonly Task[]; onEditTask: (task: Task) => Promise<void>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const title = useId();
@@ -34,7 +35,7 @@ export default function CalendarDayDetails({ day, tasks, now, initialTaskId, dis
     </header>
     <div className="space-y-3 p-4 sm:p-5">
       {tasks.length === 0 ? <p className="p-4 text-slate-400">No deadlines for this day.</p> : tasks.map(task =>
-        <TaskRow key={task.id} task={task} now={now} disabled={disabled} onStatusChange={onStatusChange} variant="calendar"
+        <TaskRow key={task.id} task={task} tasks={allTasks} onEditTask={onEditTask} now={now} disabled={disabled} onStatusChange={onStatusChange} variant="calendar"
           onDeleteTask={async id => {
             await onDeleteTask(id);
             dialog.current?.querySelector<HTMLButtonElement>('button[aria-label="Close day details"]')?.focus();

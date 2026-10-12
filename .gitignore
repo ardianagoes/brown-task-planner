@@ -3,5 +3,5 @@ node_modules/
 .env*
 !.env.example
 *.tsbuildinfo
-# Generated locally by prepare-ocr.cjs from pinned npm packages.
+# Legacy generated OCR assets (no longer used).
 public/ocr/

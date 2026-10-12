@@ -3,9 +3,10 @@ import { useMemo, useRef, useState } from "react";
 import { CATEGORY_STYLE, deadlineMillis, localDay, taskDay, urgency, type Status, type Task } from "@/lib/tasks";
 import CalendarDayDetails from "./calendar-day-details";
 
-export default function CalendarView({ tasks, now, onStatusChange, onDeleteTask, disabled = false }: {
+export default function CalendarView({ tasks, allTasks, now, onStatusChange, onDeleteTask, onEditTask, disabled = false }: {
   tasks: Task[]; now: number; onStatusChange: (id: string, status: Status) => void; disabled?: boolean;
   onDeleteTask: (id: string) => Promise<void>;
+  allTasks: readonly Task[]; onEditTask: (task: Task) => Promise<void>;
 }) {
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selected, setSelected] = useState<{ day: string; taskId?: string } | null>(null);
@@ -66,7 +67,7 @@ export default function CalendarView({ tasks, now, onStatusChange, onDeleteTask,
       </div>
     </div>
     {selected && <CalendarDayDetails day={selected.day} initialTaskId={selected.taskId} tasks={byDay.get(selected.day) || []}
-      now={now} disabled={disabled} onStatusChange={onStatusChange} onDeleteTask={onDeleteTask}
+      allTasks={allTasks} onEditTask={onEditTask} now={now} disabled={disabled} onStatusChange={onStatusChange} onDeleteTask={onDeleteTask}
       onClose={() => { setSelected(null); calendarContainer.current?.focus(); }} />}
   </div>;
 }

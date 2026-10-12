@@ -1,75 +1,83 @@
-# Verification — free local screenshot OCR
+# Verification — GPT screenshots and task editing
 
-Checked October 8, 2026 in the existing brown-task-planner checkout.
-Branch: `codex/free-screenshot-ocr`, based on main (`5c1a1e5`).
+Checked October 12, 2026 in the existing brown-task-planner repository.
+Branch: `codex/gpt-screenshot-and-task-editing`, based on latest main
+`211562d88052672d1203c071da687360f162e6a5` (the merged free OCR change).
 
-## Scope and privacy
+## Implementation
 
-Tesseract.js runs in browser workers. Engine scripts, all six WebAssembly core
-variants and English trained data are copied from pinned npm packages into
-`public/ocr` during install, development, tests and production builds. Worker
-paths are explicitly same-origin; worker Content Security Policy restricts script,
-worker and connection destinations to this application. No OCR CDN, API key,
-external model or cloud OCR request is used.
+- Removed Tesseract dependencies, parser, worker, generated assets and prep script.
+- Restored server-side Responses image extraction using gpt-5.4-mini by default,
+  strict JSON, high image detail, reasoning none, store:false and 2,400 output tokens.
+  One explicit Analyze click makes at most one provider request; no automatic retry.
+- Kept screenshot paste/drop/upload, preview, editable candidates and explicit save.
+  Analysis/failure never saves a task. Failure opens the same editable review.
+- Added editing in Active, Completed and expanded calendar day details, including
+  name, deadline, all-day, category, status and URLs. Source/ID/owner are immutable.
+- Existing task PATCH now accepts only editable details or the original status-only
+  operation. Updates scope both owner and ID; RLS and getUser() remain in force.
+- Supabase schema, Auth, ICS downloader/parser/import policy and calendar completed
+  styling remain unchanged. No SQL migration or service-role credential is needed.
 
-Screenshots remain transient browser memory: no server upload, localStorage or
-IndexedDB OCR cache. Local canvas normalization strips file metadata. Recognition
-has cancellation and a 90-second timeout. Only explicitly confirmed task details
-use the existing Supabase task-saving API. No schema changes are required.
-
-The paid extraction endpoint and provider helpers are removed. Supabase Auth,
-task persistence, duplicate handling, ICS download/parsing, task status, deletion
-and calendar behavior are unchanged.
-
-## Automated checks
+## Checks
 
 - `npm run typecheck`: passed.
-- `npm test`: all **55 tests** passed.
-- `npm run build`: passed.
-- `npm run test:smoke`: passed against the local development server, including
-  same-origin OCR asset headers and removal of the paid extraction endpoint.
-- Production OCR asset HEAD checks and same-origin worker policy: passed. The
-  additional full production smoke run reached the existing HTTPS-origin guard
-  (503) with local HTTP settings; no security behavior was changed for testing.
+- `npm test`: **61 tests passed**, no skipped/failed tests.
+- `npm run build`: passed using the configured supported Webpack mode.
+- `npm run test:smoke`: passed against the development server, including extraction
+  authentication, foreign/missing origins, full edit authentication and obsolete
+  OCR worker removal.
+- Dependency installation audit: zero reported vulnerabilities after upgrading
+  Sharp to 0.35.5.
 
-Coverage includes common month-name/ISO/numeric deadlines, missing and conflicting
-dates, ambiguous day/month order, inferred years, leap days, relative dates across
-timezone midnight, timed/all-day assignments, explicit offsets and DST validation.
-Parser fixtures represent assignment pages, discussions, PDFs and emails. OCR
-confidence, multiple candidates, bounded text, worker lifecycle/failure/cancel/
-timeout, image signatures and local asset presence are checked. The actual worker
-wrapper is exercised with controlled engine callbacks to verify local paths and
-disabled persistent language caching.
+Next's Turbopack could not create a native Sharp junction in the Windows sandbox.
+The dev/build scripts now explicitly use Next's supported --webpack option.
+An old dev route cache was moved aside within ignored .next; no product data was
+removed or security protection relaxed to fix the environment.
 
-UI tests cover clipboard/drop/upload, retained previews, manual correction,
-uncertainty confirmation, no save before Add Assignment, failure recovery without
-starting over, duplicates and stable retry IDs. Existing database tests verify
-reviewed task persistence and owner isolation using local PostgreSQL/PGlite.
+## Automated coverage
 
-## Real browser checks
+Provider requests are mocked: no real paid API calls occur. Tests inspect Responses
+schema, model, detail, no reasoning/tools/storage, one call, bounded output and
+safe handling of malformed/refused/incomplete/error responses. Upload tests fully
+decode PNG/JPEG/WebP, reject MIME spoofing/excessive pixels/bytes, bound the actual
+stream despite false Content-Length, and verify image metadata removal. Auth and
+origin precede image reading; durable rate-limit failures block provider calls.
 
-A temporary local screen used the real TaskCreator, TaskWorkspace and actual
-Tesseract engine, with sample PNG screenshots and memory-only task saves. The
-screen was removed before the final production build and is not committed.
+Date tests cover relative words, missing/inferred/ambiguous dates, all-day literals,
+IANA zones/offsets and DST gaps/repeated times. UI tests exercise screenshot input,
+review selection, required uncertainty/duplicate confirmation, manual corrections,
+retained drafts, stable retry IDs and rapid Analyze double-click prevention.
 
-- Clear light and dark screenshots extracted Problem Set 13, October 15, 2026,
-  5 PM EST, and Homework correctly.
-- Multiple deadlines produced separate candidates without arbitrary selection.
-- Tomorrow resolved to October 9 using October 8 in America/New_York and was
-  flagged for review. An ambiguous 10/11/2026 date remained blank.
-- A blank screenshot opened the editable form with the screenshot retained.
-- Editing the title and confirming created the reviewed timed task; confirming a
-  date-only application created an all-day task. Analysis itself created no task.
-- No browser warning or error messages occurred.
+Editing tests verify prefilled fields, exact deadline preservation for detail-only
+edits, all-day/timed switching, DST correction, all three entry points, Cancel/Escape,
+failed-save retention, single in-flight updates and source/ID preservation. The
+server helper is tested for strict writable fields, owner/ID scoping, nulling the
+opposite deadline column, not-found handling and absence of upserts. Existing
+PostgreSQL/PGlite tests verify RLS, task persistence and database date constraints.
 
-Visual proof is outside the repository: `outputs/free-screenshot-ocr.jpg`.
-Real authenticated hosted Supabase writes were not performed; browser saves used
-disposable sample data in memory. No paid provider was configured or contacted.
+## Browser verification
 
-## Deployment
+Used actual UI components in a temporary local page with sample tasks, a mocked
+GPT result and memory-only saves. The page was removed before the final build.
+No real account, hosted task or private screenshot was modified/transmitted.
 
-Keep existing Supabase, APP_TIMEZONE and canonical URL settings. No OCR service
-configuration is needed. Former OPENAI_API_KEY / OPENAI_IMAGE_MODEL settings can
-be deleted: the application no longer reads them. Standard npm install/build
-bundles the OCR assets locally; redeploy the branch to publish the replacement.
-English OCR and heuristic parsing need review for blurry images or unusual text.
+- Opened prefilled timed editing from Active and all-day editing from Completed.
+- Changed task title, date and time; confirmed it moved to the new calendar day
+  with the correct local time and retained source/identity.
+- Opened editing inside the native calendar day modal; saving a moved task returned
+  focus to the remaining Close button when the original row disappeared.
+- Screenshot analysis showed editable review without creating a task. Correcting
+  its date and clicking Add Assignment created the reviewed all-day sample only.
+- No browser warning/error messages during the interactions. A sample screenshot
+  of the edit dialog is outside Git at outputs/gpt-task-editing.jpg.
+
+## Configuration and remaining live checks
+
+Set OPENAI_API_KEY server-side, OPENAI_IMAGE_MODEL=gpt-5.4-mini and the existing
+APP_TIMEZONE / Supabase / canonical HTTPS-origin settings; restart or redeploy.
+The README explains project spending limits/alerts and external-provider retention.
+No real GPT extraction or authenticated hosted Supabase update was performed in
+this verification. Check real image accuracy and save/reload after configuring the
+key in your signed-in deployment. Imported edits retain existing refresh behavior:
+later feed imports can refresh names/deadlines/URLs, preserving status/category.

@@ -2,17 +2,20 @@
 import { useId, useRef, useState } from "react";
 import { CATEGORY_STYLE, safeUrl, taskDay, urgency, type Status, type Task } from "@/lib/tasks";
 import TaskStatusControls from "./task-status-controls";
+import TaskEditDialog from "./task-edit-dialog";
 
-export default function TaskRow({ task, now, disabled, onStatusChange, onDeleteTask, variant = "list" }: {
+export default function TaskRow({ task, tasks, now, disabled, onStatusChange, onDeleteTask, onEditTask, variant = "list" }: {
   task: Task; now: number; disabled?: boolean; onStatusChange: (id: string, status: Status) => void;
   variant?: "list" | "calendar";
   onDeleteTask: (id: string) => Promise<void>;
+  tasks: readonly Task[]; onEditTask: (task: Task) => Promise<void>;
 }) {
   const heading = useId();
   const flag = urgency(task, now);
   const completed = task.status === "Submitted/Done";
   const completedCalendar = completed && variant === "calendar";
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [editing, setEditing] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
   const deleteButton = useRef<HTMLButtonElement>(null);
@@ -44,10 +47,14 @@ export default function TaskRow({ task, now, disabled, onStatusChange, onDeleteT
       <a key={`${url}-${index}`} href={safeUrl(url) || undefined} target="_blank" rel="noopener noreferrer" className="link break-all text-sm">
         {new URL(url).hostname}{task.urls.length > 1 ? ` (${index + 1})` : ""}
       </a>)}
+      <button type="button" disabled={unavailable} aria-label={`Edit ${task.name}`} onClick={() => setEditing(true)}
+        className="ml-auto flex min-h-9 items-center gap-1 rounded-md px-2 text-xs text-slate-300 hover:bg-slate-800 hover:text-white disabled:opacity-50">
+        <svg aria-hidden="true" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m16 3 5 5-12 12-6 1 1-6Z" /><path d="m14 5 5 5" /></svg>Edit</button>
       <button ref={deleteButton} type="button" disabled={unavailable} aria-label={`Delete ${task.name}`}
-        className="ml-auto min-h-9 rounded-md px-2 text-xs text-slate-400 hover:bg-red-950/40 hover:text-red-300 disabled:opacity-50"
+        className="min-h-9 rounded-md px-2 text-xs text-slate-400 hover:bg-red-950/40 hover:text-red-300 disabled:opacity-50"
         onClick={() => { setConfirmingDelete(true); setDeleteError(""); }}>Delete</button>
     </div>
+    {editing && <TaskEditDialog task={task} tasks={tasks} disabled={unavailable} onSave={onEditTask} onClose={() => setEditing(false)} />}
     {confirmingDelete && <div role="group" aria-label={`Confirm deletion of ${task.name}`}
       className="mt-3 rounded-lg border border-red-900/60 bg-red-950/10 p-3">
       <p className="text-sm text-slate-200">Permanently delete this task? This cannot be undone.</p>

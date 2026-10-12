@@ -35,13 +35,13 @@ export default function TaskReviewForm({ candidate, defaultTimezone, tasks, disa
       <label className="block">Task name{uncertain("name") && <span className="ml-1 text-xs text-amber-200">· check</span>}
         <input name="name" className={style("name")} value={draft.name} required maxLength={200} onChange={event => update({ name: event.target.value })} /></label>
       <label className="block">Due date{uncertain("dueDate") && <span className="ml-1 text-xs text-amber-200">· check date/year</span>}
-        <input name="dueDate" type="date" className={style("dueDate")} value={draft.dueDate} required onChange={event => update({ dueDate: event.target.value })} /></label>
+        <input name="dueDate" type="date" className={style("dueDate")} value={draft.dueDate} required onInput={event => update({ dueDate: event.currentTarget.value })} onChange={event => update({ dueDate: event.target.value })} /></label>
       <label className="flex min-h-9 items-center gap-2"><input name="allDay" type="checkbox" checked={draft.allDay}
         className="h-4 w-4 accent-blue-500" onChange={event => update({ allDay: event.target.checked })} />All day · time unspecified</label>
       {!candidate.dueTime && <p className="text-xs text-amber-200">No clear due time was detected. Keep all day or enter a time.</p>}
       {!draft.allDay && <>
         <label className="block">Due time{uncertain("dueTime") && <span className="ml-1 text-xs text-amber-200">· check</span>}
-          <input name="dueTime" type="time" className={style("dueTime")} value={draft.dueTime} required onChange={event => update({ dueTime: event.target.value })} /></label>
+          <input name="dueTime" type="time" className={style("dueTime")} value={draft.dueTime} required onInput={event => update({ dueTime: event.currentTarget.value })} onChange={event => update({ dueTime: event.target.value })} /></label>
         <label className="block">Timezone{uncertain("timezone") && <span className="ml-1 text-xs text-amber-200">· confirm</span>}
           <input name="timezone" className={style("timezone")} value={draft.timezone} required maxLength={100} placeholder="America/New_York"
             onChange={event => update({ timezone: event.target.value })} /></label>

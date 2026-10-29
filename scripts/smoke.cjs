@@ -31,6 +31,24 @@ const origin = new URL(process.env.SMOKE_APP_URL || 'http://127.0.0.1:3000').ori
   assert.equal((await fetch(origin + '/ocr-runner.js')).status, 404, 'Obsolete OCR worker removed');
   assert.equal(reset.status, 307);
   assert.equal(new URL(reset.headers.get('location'), origin).pathname, '/login');
+  assert.equal(new URL(reset.headers.get('location'), origin).searchParams.get('mode'), 'forgot');
+  for (const headers of [{ Origin: origin }, { Origin: 'https://evil.example' }, {}]) {
+    const password = await fetch(origin + '/api/auth/password', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(password.status, headers.Origin === origin ? 401 : 403, 'Recovery password protection');
+    assert.match(password.headers.get('cache-control'), /no-store/);
+    const confirmation = await fetch(origin + '/auth/confirm', { method: 'POST', headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'nonce=invalid', redirect: 'manual' });
+    assert.equal(confirmation.status, headers.Origin === origin ? 303 : 403, 'Email confirmation protection');
+  }
+  const staged = await fetch(origin + '/auth/confirm?token_hash=' + 'a'.repeat(64) + '&type=recovery', { redirect: 'manual' });
+  assert.equal(staged.status, 303);
+  assert.equal(staged.headers.get('location'), origin + '/auth/confirm/continue');
+  assert.match(staged.headers.get('set-cookie'), /dd-email-link=.*HttpOnly/i);
+  assert.match(staged.headers.get('cache-control'), /no-store/);
+  assert.equal(staged.headers.get('referrer-policy'), 'no-referrer');
+  const continued = await fetch(origin + '/auth/confirm/continue', { headers: { Cookie: staged.headers.get('set-cookie').split(';')[0] } });
+  const html = await continued.text();
+  assert.equal(continued.status, 200); assert.match(html, /Continue to reset password/);
+  assert.match(html, /action="\/auth\/confirm"/); assert.doesNotMatch(html, /token_hash=|a{64}/);
   const callback = await fetch(origin + '/auth/callback?next=https://evil.example', { redirect: 'manual' });
   assert.equal(new URL(callback.headers.get('location'), origin).pathname, '/login');
   console.log('Passed live app smoke checks: page protection, every API auth guard, origin rejection, no-store, callback redirect safety.');

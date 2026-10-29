@@ -1,4 +1,51 @@
-# Verification — GPT screenshots and task editing
+# Verification — email authentication
+
+Checked October 29, 2026 in the existing brown-task-planner repository.
+Branch: `codex/fix-email-authentication`, based on main
+`3f1f3b416da0c6f36a44dd3e5c26800270d22825`.
+
+## Auth changes and checks
+
+- Added token-hash email verification with an explicit confirmation POST. GET
+  callbacks stage links without consuming them, then redirect to a clean URL.
+- Verified identity/session server-side and preserved all SSR cookie chunks on
+  redirects. Legacy PKCE exchanges retain the optional SDK `sb_flow_id` and require
+  the requesting browser's verifier. PKCE recovery also needs verified recovery AMR.
+- Added private-account magic links (`shouldCreateUser: false`), safe actionable
+  errors, and a recovery-only password endpoint. Signed HttpOnly recovery grants
+  bind the verified user/session for 30 minutes. Successful updates clear the local
+  recovery session and show an explicit sign-in continuation.
+- No task/database/RLS/ICS/screenshot changes, service-role key, real emails or
+  deployment-protection changes. A random signing secret was configured only in
+  ignored `.env.local`; production requires its own private Vercel setting.
+- `npm run typecheck`: passed.
+- `npm test`: **82 tests passed**, zero skipped/failed. The 20 added tests cover
+  recovery, magic links, used/expired/invalid tokens, absent sessions, PKCE, origins,
+  safe logs, production destinations, signed grants and reset/email UI behavior.
+- Real `@supabase/ssr` clients with mocked Auth HTTP responses prove both recovery
+  and email sessions work in a new browser without PKCE state, including chunked
+  cookie persistence. A separate real SDK PKCE test checks per-flow verifier slots.
+- `npm run test:smoke`: passed against the running Next development server. Checks
+  cover signed-out dashboard/API/reset protection, missing/foreign origins, private
+  headers, and the actual confirmation page's form. The staged synthetic token is
+  absent from rendered HTML and no provider verification occurs on GET. Next's
+  development request logger suppresses auth paths with sensitive query strings.
+- `npm run build`: passed; see the final commit's checks for the latest run.
+
+Anonymous read-only production checks reached `/login` (200) and the callback
+routes (application redirects for absent credentials), with no observed Vercel
+authentication wall. Hosted Supabase templates/URL settings, SMTP delivery and
+Vercel protection settings were not accessible for inspection or changed.
+
+**Production is not yet verified.** Apply the exact manual template, URL and Vercel
+environment setup in [EMAIL_AUTH_SETUP.md](docs/EMAIL_AUTH_SETUP.md), redeploy,
+then follow its desktop-request → iPhone-open recovery and magic-link checks.
+Old emails cannot be repaired retroactively. Automated mock tests and a passing
+build do not prove hosted email delivery or mobile configuration.
+
+The earlier implementation record below is retained as history.
+
+# Verification — GPT screenshots and task editing (October 12)
 
 Checked October 12, 2026 in the existing brown-task-planner repository.
 Branch: `codex/gpt-screenshot-and-task-editing`, based on latest main

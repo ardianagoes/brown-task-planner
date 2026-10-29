@@ -17,13 +17,10 @@ apply the migration below; then configure Auth URLs and environment variables.
    It is transactional, can be reapplied, and also supports the original starter
    schema. It creates tables, ownership policies, import functions, migration
    receipts, and durable import limits. Existing tasks are retained.
-3. In Supabase **Authentication → URL Configuration**, set Site URL to the app's
-   canonical origin. For local testing use `http://127.0.0.1:3000`. Add these exact
-   redirect URLs:
-   - `http://127.0.0.1:3000/auth/callback`
-   - `http://127.0.0.1:3000/auth/callback?next=/auth/reset`
-   When deploying, add the equivalent HTTPS URLs for your deployment and set Site
-   URL to that deployment. Keep local URLs only if you still use them.
+3. Configure Supabase's Site URL, redirect allowlist and all three email templates
+   using [Email authentication setup](docs/EMAIL_AUTH_SETUP.md). Production Site URL
+   is `https://brown-task-planner.vercel.app`. The token-hash templates are required
+   for email links opened on a different browser/device.
 4. Enable email/password authentication. The currently configured project requires
    email confirmation. Confirm your account before signing in. Configure production
    email delivery in Supabase if needed for your users.
@@ -52,6 +49,7 @@ Copy-Item .env.example .env.local
 | `NEXT_PUBLIC_SUPABASE_URL` | Your Supabase project's URL |
 | `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Your project's publishable key |
 | `NEXT_PUBLIC_APP_URL` | Exact public origin: local HTTP for development, HTTPS in production |
+| `AUTH_RECOVERY_SECRET` | Server-only random signing secret, at least 32 characters; generate 32 random bytes as hex and keep stable across production instances |
 | `ICS_ALLOWED_HOSTS` | Optional comma-separated exact school/exporter hostnames |
 | `APP_TIMEZONE` | Timezone for screenshot relative dates, floating ICS timestamps and the Canvas import date cutoff; defaults to `America/New_York` |
 | `OPENAI_API_KEY` | Server-only OpenAI project API key |
@@ -71,26 +69,30 @@ Auth implementation follows the [Supabase SSR guide](https://supabase.com/docs/g
 See [redirect configuration](https://supabase.com/docs/guides/auth/redirect-urls) and
 [password authentication](https://supabase.com/docs/guides/auth/passwords) for project settings.
 
-## Email confirmation and recovery
+## Email sign-in, confirmation and recovery
 
-The default Supabase email links use the PKCE callback at `/auth/callback`. Open
-those links in the browser that requested them so its verifier cookie is available.
-The app also supports `/auth/confirm` with token hashes for custom email templates.
-To support confirmation/recovery across browsers, configure these link targets in
-Supabase's email templates (Site URL must be your intended app origin):
+Select **Email me a sign-in link** or **Forgot password?** on the login screen.
+Magic links use `shouldCreateUser: false`; they do not create unknown accounts.
+Configure the token-hash email templates in [the setup guide](docs/EMAIL_AUTH_SETUP.md)
+to allow desktop-requested links to work on iPhone/Safari or another browser.
+Legacy PKCE links remain supported in the browser that requested them.
 
-```html
-<!-- Confirm signup -->
-<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=signup">Confirm account</a>
-<!-- Reset password -->
-<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=recovery">Reset password</a>
-```
+Opening a link stages it in a short-lived HttpOnly cookie and redirects to a clean
+confirmation page. Select Continue to verify it; GET prefetching alone does not
+consume the single-use token. Successful verification checks the server identity
+and persists every Supabase session-cookie chunk on the final redirect.
+Recovery goes to `/auth/reset`; email sign-in/confirmation goes to the dashboard.
+Destinations are fixed, with no arbitrary `next` redirect.
 
-Password recovery lands on `/auth/reset`, which requires a verified session. Invalid
-or expired links return to sign-in with a clear message. Only `/` and `/auth/reset`
-are valid destinations; callback parameters cannot redirect to another site.
-The signup/reset forms require at least 12 characters. Supabase's configured password
-policy may require more.
+The reset page and password endpoint require both a verified Supabase session and
+a 30-minute signed recovery grant bound to that account/session. Set the server-only
+`AUTH_RECOVERY_SECRET` before using recovery. A regular signed-in session alone
+cannot use this password-reset endpoint. Successful updates sign out the local
+recovery session and show **Password updated → Continue to sign in**. The password
+must match its confirmation and contain 12–256 characters; Supabase's policy may
+require more. Invalid, expired or used links explain the issue and offer fresh-link
+forms. Development diagnostics contain safe reasons/codes/statuses, never raw
+provider messages, credentials or complete callback URLs.
 
 ## Migrate browser tasks
 
@@ -215,9 +217,11 @@ and category remain preserved.
 app/
   page.tsx                    server-verified dashboard entry
   login/page.tsx              sign-in, signup and recovery forms
-  auth/callback/route.ts      PKCE email callback
-  auth/confirm/route.ts       token-hash email confirmation
-  auth/reset/page.tsx         authenticated password reset
+  auth/callback/route.ts      stage legacy PKCE or token-hash email links
+  auth/confirm/route.ts       stage links (GET), verify on confirmation (POST)
+  auth/confirm/continue/      clean confirmation landing page
+  auth/reset/page.tsx         verified recovery-session password reset
+  api/auth/password/route.ts  recovery-only password update and local sign-out
   auth/signout/route.ts       same-origin sign-out
   api/tasks/route.ts          read/create tasks
   api/tasks/[id]/route.ts     edit/status/delete an owned task
@@ -235,10 +239,14 @@ components/
   task-status-controls.tsx    mutually exclusive status checkboxes
   calendar-view.tsx           compact month previews and day overflow
   calendar-day-details.tsx    native dialog with all tasks for a day
-  auth-panel.tsx              email/password authentication
+  auth-panel.tsx              password, magic-link and recovery email forms
   reset-password.tsx          password update form
 lib/
   supabase/                   browser/server clients and database types
+  auth-flow.ts                verified email flows and signed recovery grants
+  auth-handlers.ts            staged confirmation and cookie-preserving redirect
+  auth-requests.ts            client email requests and password-update request
+  auth-messages.ts            safe link-error explanations
   api.ts                      verified identity and safe API responses
   http.ts                     origin, redirect and body-size checks
   task-store.ts               task-row mapping and paginated reads
@@ -347,7 +355,9 @@ provided by your institution or exporter; a course page URL does not work.
    `NEXT_PUBLIC_APP_URL` must be the exact HTTPS origin you will open, with no path.
    Origin validation deliberately rejects alternate preview domains; configure
    each preview environment's own app URL and Supabase redirect allowlist.
-4. Add the deployment callback URLs to Supabase Auth and set its production Site URL.
+4. Apply the exact Supabase templates/URLs and server-only recovery secret from
+   [Email authentication setup](docs/EMAIL_AUTH_SETUP.md). Existing default PKCE
+   templates do not support opening links on a different device.
 5. Deploy/rebuild, then complete confirmation, password recovery, task save/reload,
    a second-account isolation check, and a real feed import.
 

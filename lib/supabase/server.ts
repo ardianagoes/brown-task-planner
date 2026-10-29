@@ -8,6 +8,7 @@ export async function serverClient() {
   const store = await cookies();
   const { url, key } = supabaseConfig();
   return createServerClient<Database>(url, key, {
+    cookieOptions: { secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/" },
     cookies: {
       getAll: () => store.getAll(),
       setAll(values) {

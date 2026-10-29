@@ -1,1 +1,1 @@
-export { finishAuth as GET } from "@/lib/auth-callback";
+export { stageAuth as GET } from "@/lib/auth-callback";

@@ -13,6 +13,18 @@ export function assertSameOrigin(request: Request) {
   if (request.headers.get("origin") !== appOrigin(request)) throw new HttpError(403, "Request origin rejected.");
 }
 export function safeNext(value: string | null): string { return value === "/auth/reset" ? value : "/"; }
+export async function readForm(request: Request, maxBytes: number): Promise<URLSearchParams> {
+  if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/x-www-form-urlencoded")) throw new HttpError(415, "Use a confirmation form.");
+  const reader = request.body?.getReader(); if (!reader) throw new HttpError(400, "Provide a confirmation form.");
+  const chunks: Uint8Array[] = []; let size = 0;
+  try {
+    while (true) { const part = await reader.read(); if (part.done) break; size += part.value.byteLength;
+      if (size > maxBytes) { await reader.cancel(); throw new HttpError(413, "Confirmation form is too large."); } chunks.push(part.value); }
+    const bytes = new Uint8Array(size); let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.length; }
+    return new URLSearchParams(new TextDecoder().decode(bytes));
+  } finally { reader.releaseLock(); }
+}
 export async function readJson(request: Request, maxBytes: number): Promise<unknown> {
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("application/json")) throw new HttpError(415, "Use application/json.");
   const reader = request.body?.getReader();

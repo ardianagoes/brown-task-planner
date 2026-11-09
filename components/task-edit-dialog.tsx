@@ -3,6 +3,7 @@ import { useEffect, useId, useMemo, useRef, useState, type FormEvent } from "rea
 import { CATEGORIES, STATUSES, type Status, type Task } from "@/lib/tasks";
 import { possibleDuplicate, type AssignmentDraft } from "@/lib/assignment-draft";
 import { draftFromTask, taskFromEditDraft } from "@/lib/task-editing";
+import { trapDialogTab } from "./dialog-focus";
 
 export default function TaskEditDialog({ task, tasks, disabled, onSave, onClose }: {
   task: Task; tasks: readonly Task[]; disabled?: boolean; onSave: (task: Task) => Promise<void>; onClose: () => void;
@@ -32,7 +33,7 @@ export default function TaskEditDialog({ task, tasks, disabled, onSave, onClose 
     } catch (error) { setError(error instanceof Error ? error.message : "Could not save changes. Try again."); }
     finally { active.current = false; setSaving(false); }
   }
-  return <dialog ref={dialog} aria-labelledby={title} onCancel={event => { event.preventDefault(); if (!active.current) onClose(); }}
+  return <dialog ref={dialog} aria-labelledby={title} tabIndex={-1} onKeyDown={trapDialogTab} onCancel={event => { event.preventDefault(); if (!active.current) onClose(); }}
     className="day-dialog w-[calc(100%-2rem)] max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-5 text-slate-100 shadow-2xl">
     <h2 id={title} className="text-lg font-semibold">Edit Assignment</h2>
     <p className="mt-1 text-xs text-slate-400">Source: {task.source} · Times use the timezone below.</p>

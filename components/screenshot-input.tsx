@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { IMAGE_TYPES, imageFileError } from "@/lib/image-limits";
+import { ImageUp } from "lucide-react";
 
 export default function ScreenshotInput({ file, onFileChange, enabled, error, onError }: {
   file: File | null; onFileChange: (file: File | null) => void; enabled: boolean; error: string; onError: (error: string) => void;
@@ -38,13 +39,11 @@ export default function ScreenshotInput({ file, onFileChange, enabled, error, on
         if (event.target.files?.length) pick(Array.from(event.target.files)); event.target.value = "";
       }} />
     <button type="button" disabled={!enabled} aria-label={file ? "Replace screenshot" : "Choose screenshot"}
-      className={`flex w-full flex-col items-center gap-2 rounded-xl border border-dashed p-4 text-center transition-colors disabled:opacity-50 ${dragging ? "border-blue-400 bg-blue-950/40" : "border-slate-600 bg-slate-950/30 hover:border-blue-400"}`}
+      className={`screenshot-dropzone ${dragging ? "is-dragging" : ""}`}
       onClick={() => input.current?.click()} onDragOver={event => { event.preventDefault(); if (enabled) setDragging(true); }}
       onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); pick(Array.from(event.dataTransfer.files)); }}>
       {preview ? <img src={preview} alt="Screenshot preview" className="max-h-36 w-full rounded-md object-contain" /> :
-        <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-blue-300" aria-hidden="true">
-          <rect x="3" y="4" width="18" height="16" rx="2" /><circle cx="8" cy="9" r="1.5" /><path d="m3 17 5-5 4 4 4-6 5 7" />
-        </svg>}
+        <ImageUp size={28} className="screenshot-icon" aria-hidden="true" />}
       <span className="text-sm font-medium text-slate-200">{file ? "Click or drop to replace" : "Paste, drop, or choose a screenshot"}</span>
       {!file && <span className="text-xs leading-relaxed text-slate-400">Screenshot any assignment with Win + Shift + S, then Ctrl + V to paste it here.</span>}
       <span className="text-[11px] text-slate-400">PNG, JPEG, WebP · up to 3 MB</span>

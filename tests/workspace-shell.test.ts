@@ -7,7 +7,7 @@ const dom = new JSDOM("<!doctype html><html><body></body></html>", { url: "http:
 let root: Root, container: HTMLDivElement, createRoot: typeof import("react-dom/client").createRoot;
 let Shell: typeof import("../components/workspace-shell").default;
 before(async () => {
-  for (const key of ["window", "document", "Element", "HTMLElement", "HTMLInputElement", "HTMLDialogElement", "Event", "MouseEvent"])
+  for (const key of ["window", "document", "Element", "HTMLElement", "HTMLInputElement", "HTMLDialogElement", "Event", "MouseEvent", "KeyboardEvent"])
     Object.defineProperty(globalThis, key, { configurable: true, value: dom.window[key as keyof typeof dom.window] });
   Object.defineProperty(globalThis, "navigator", { configurable: true, value: dom.window.navigator });
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -23,7 +23,7 @@ async function mount() {
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   await act(async () => root.render(createElement(Shell, { email: "", tasks: [], ready: true, saving: false, hasError: false, now: Date.now(), category: "All", onCategoryChange() {}, onSignOut() {},
     settings: createElement("form", { "aria-label": "Import feed" }, createElement("input", { name: "feed" })),
-    renderCreator: onBusyChange => createElement("div", null, createElement("button", { onClick: () => onBusyChange(true) }, "Begin operation"), createElement("button", { onClick: () => onBusyChange(false) }, "Finish operation")),
+    renderCreator: (onBusyChange, initialFiles) => createElement("div", { "data-pasted-count": initialFiles.length }, createElement("button", { onClick: () => onBusyChange(true) }, "Begin operation"), createElement("button", { onClick: () => onBusyChange(false) }, "Finish operation")),
     children: section => createElement("h1", null, section),
   })));
 }
@@ -49,4 +49,24 @@ test("calendar imports live in Settings and do not occupy the task workspace", a
   await click('.workspace-sidebar [aria-label="Settings"]'); assert.ok(q('[name="feed"]'));
   assert.match(q(".settings-section").textContent!, /Account/);
   await click('[aria-label="Close settings"]'); assert.equal(container.querySelector('[name="feed"]'), null);
+});
+
+test("Tab and Shift+Tab cycle within the modal instead of losing focus to browser chrome", async () => {
+  await mount(); await click(".add-task-button");
+  const controls = [...q("dialog").querySelectorAll<HTMLButtonElement>("button")];
+  for (const control of controls) control.getClientRects = () => [{ width: 30, height: 30 }] as unknown as DOMRectList;
+  const first = controls[0], last = controls.at(-1)!; first.focus();
+  await act(async () => { first.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Tab", shiftKey: true, bubbles: true, cancelable: true })); });
+  assert.equal(document.activeElement, last);
+  await act(async () => { last.dispatchEvent(new dom.window.KeyboardEvent("keydown", { key: "Tab", bubbles: true, cancelable: true })); });
+  assert.equal(document.activeElement, first);
+});
+
+test("workspace image paste opens creation while ordinary text-field pasting remains untouched", async () => {
+  await mount(); const input = document.createElement("textarea"); container.append(input);
+  const paste = (target: Element) => { const event = new dom.window.Event("paste", { bubbles: true, cancelable: true }); Object.defineProperty(event, "clipboardData", { value: { files: [new File(["test"], "screenshot.png", { type: "image/png" })] } }); target.dispatchEvent(event); return event; };
+  let ordinary!: Event; await act(async () => { ordinary = paste(input); }); assert.equal(ordinary.defaultPrevented, false); assert.equal(container.querySelector("dialog"), null);
+  let image!: Event; await act(async () => { image = paste(document.body); }); assert.equal(image.defaultPrevented, true);
+  assert.equal(q('[data-pasted-count]').getAttribute("data-pasted-count"), "1");
+  await click('[aria-label="Close add task"]'); await click('.add-task-button'); assert.equal(q('[data-pasted-count]').getAttribute("data-pasted-count"), "0");
 });

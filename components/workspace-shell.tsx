@@ -1,5 +1,5 @@
 "use client";
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { CalendarDays, CheckCheck, ChevronRight, CircleHelp, Layers2, LogOut, PanelLeftClose, PanelLeftOpen, Plus, Settings2, Sun, Zap } from "lucide-react";
 import { CATEGORIES, localDay, taskDay, type Category, type Task } from "@/lib/tasks";
 import WorkspaceDialog from "./workspace-dialog";
@@ -12,14 +12,27 @@ const navigation = [
 export default function WorkspaceShell({ email, tasks, ready, saving, hasError, now, category, onCategoryChange, onSignOut, settings, renderCreator, children }: {
   email: string; tasks: Task[]; ready: boolean; saving: boolean; hasError: boolean; now: number;
   category: Category | "All"; onCategoryChange: (category: Category | "All") => void; onSignOut: () => void;
-  settings: ReactNode; renderCreator: (onBusyChange: (busy: boolean) => void) => ReactNode;
+  settings: ReactNode; renderCreator: (onBusyChange: (busy: boolean) => void, initialFiles: readonly File[]) => ReactNode;
   children: (section: WorkspaceSection, onSectionChange: (section: WorkspaceSection) => void, onCreate: () => void) => ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false), [section, setSection] = useState<WorkspaceSection>("upcoming");
   const [modal, setModal] = useState<"create" | "settings" | null>(null), [creatorBusy, setCreatorBusy] = useState(false);
+  const [pastedFiles, setPastedFiles] = useState<File[]>([]);
   const active = tasks.filter(task => task.status !== "Submitted/Done"), today = localDay(new Date(now));
   const counts = { today: active.filter(task => taskDay(task) === today).length, upcoming: active.length, completed: tasks.length - active.length, calendar: null };
-  const openCreator = () => setModal("create");
+  const openCreator = () => { setPastedFiles([]); setModal("create"); };
+  const closeModal = () => { setModal(null); setPastedFiles([]); setCreatorBusy(false); };
+  useEffect(() => {
+    if (modal || !ready || saving) return;
+    const paste = (event: ClipboardEvent) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (target?.closest("input, textarea, select, [contenteditable], [role=textbox]")) return;
+      const files = Array.from(event.clipboardData?.files || []); if (!files.length) return;
+      event.preventDefault(); setPastedFiles(files); setModal("create");
+    };
+    document.addEventListener("paste", paste);
+    return () => document.removeEventListener("paste", paste);
+  }, [modal, ready, saving]);
   return <div className={`workspace-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
     <a href="#workspace-main" className="skip-link">Skip to workspace</a>
     <aside className="workspace-sidebar" aria-label="Workspace navigation">
@@ -50,8 +63,8 @@ export default function WorkspaceShell({ email, tasks, ready, saving, hasError, 
       <footer className="workspace-footer"><span>Your deadlines. A little more headspace.</span><button type="button" onClick={() => setModal("settings")}><CircleHelp size={13} aria-hidden="true" />Calendar imports & settings</button></footer>
     </div>
     <nav className="mobile-navigation" aria-label="Mobile workspace navigation">{navigation.map(({ id, label, icon: Icon }) => <button type="button" key={id} aria-current={section === id ? "page" : undefined} onClick={() => setSection(id)}><Icon size={19} aria-hidden="true" /><span>{label}</span></button>)}</nav>
-    {modal === "create" && <WorkspaceDialog title="Add task" description="Start with a screenshot or enter the details yourself." busy={saving || creatorBusy} onClose={() => setModal(null)}>{renderCreator(setCreatorBusy)}</WorkspaceDialog>}
-    {modal === "settings" && <WorkspaceDialog title="Settings" description="Manage your account and connect your calendar feeds." busy={saving} onClose={() => setModal(null)}>{settings}
+    {modal === "create" && <WorkspaceDialog title="Add task" description="Start with a screenshot or enter the details yourself." busy={saving || creatorBusy} onClose={closeModal}>{renderCreator(setCreatorBusy, pastedFiles)}</WorkspaceDialog>}
+    {modal === "settings" && <WorkspaceDialog title="Settings" description="Manage your account and connect your calendar feeds." busy={saving} onClose={closeModal}>{settings}
       <div className="settings-section"><h3>Account</h3><p>{email || "Personal workspace"}</p><button type="button" className="button-secondary mt-3" disabled={saving} onClick={onSignOut}><LogOut size={15} aria-hidden="true" />Sign out</button></div>
     </WorkspaceDialog>}
   </div>;

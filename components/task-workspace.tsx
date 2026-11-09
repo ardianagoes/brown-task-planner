@@ -1,75 +1,72 @@
 "use client";
-import { useId, useMemo, useRef, useState } from "react";
-import { CATEGORIES, CATEGORY_STYLE, type Category, type Status, type Task } from "@/lib/tasks";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { ArrowDownWideNarrow, CalendarDays, CheckCheck, List, ListFilter, Plus, Sparkles } from "lucide-react";
+import { CATEGORIES, deadlineMillis, localDay, taskDay, type Category, type Status, type Task } from "@/lib/tasks";
 import { tasksForView, type TaskTab } from "@/lib/task-workflow";
+import type { WorkspaceSection } from "./workspace-shell";
+import { groupAgenda } from "./agenda-groups";
 import CalendarView from "./calendar-view";
 import TaskRow from "./task-row";
-import type { WorkspaceSection } from "./workspace-shell";
-import { localDay, taskDay } from "@/lib/tasks";
+import UpcomingPanel from "./upcoming-panel";
 
-export default function TaskWorkspace({ tasks, now, ready, saving, category, onCategoryChange, onStatusChange, onDeleteTask, onEditTask, onRetry, hasError, section, onSectionChange }: {
+export default function TaskWorkspace({ tasks, now, ready, saving, category, onCategoryChange, onStatusChange, onDeleteTask, onEditTask, onRetry, hasError, section, onSectionChange, onCreate }: {
   tasks: Task[]; now: number; ready: boolean; saving: boolean; category: Category | "All";
-  onCategoryChange: (category: Category | "All") => void;
-  onStatusChange: (id: string, status: Status) => void; onRetry: () => void; hasError: boolean;
-  onDeleteTask: (id: string) => Promise<void>;
-  onEditTask: (task: Task) => Promise<void>;
-  section?: WorkspaceSection; onSectionChange?: (section: WorkspaceSection) => void;
+  onCategoryChange: (category: Category | "All") => void; onStatusChange: (id: string, status: Status) => void;
+  onRetry: () => void; hasError: boolean; onDeleteTask: (id: string) => Promise<void>; onEditTask: (task: Task) => Promise<void>;
+  section?: WorkspaceSection; onSectionChange?: (section: WorkspaceSection) => void; onCreate?: () => void;
 }) {
-  const [internalSection, setInternalSection] = useState<WorkspaceSection>("upcoming");
-  const destination = section || internalSection;
-  const navigate = onSectionChange || setInternalSection;
-  const view = destination === "calendar" ? "calendar" : "list";
-  const tab: TaskTab = destination === "completed" ? "completed" : "active";
-  const setView = (mode: "list" | "calendar") => navigate(mode === "calendar" ? "calendar" : "upcoming");
-  const setTab = (mode: TaskTab) => navigate(mode === "completed" ? "completed" : "upcoming");
-  const [ascending, setAscending] = useState(true);
-  const id = useId();
-  const tabButtons = useRef<(HTMLButtonElement | null)[]>([]);
-  const listPanel = useRef<HTMLDivElement>(null);
+  const [internalSection, setInternalSection] = useState<WorkspaceSection>("upcoming"), [ascending, setAscending] = useState(true);
+  const destination = section || internalSection, navigate = onSectionChange || setInternalSection;
+  const view = destination === "calendar" ? "calendar" : "list", tab: TaskTab = destination === "completed" ? "completed" : "active";
+  const id = useId(), tabButtons = useRef<(HTMLButtonElement | null)[]>([]), listPanel = useRef<HTMLDivElement>(null);
+  const pendingFocus = useRef<string | null>(null);
   const visible = useMemo(() => tasksForView(tasks, view, tab, category, ascending).filter(task => destination !== "today" || taskDay(task) === localDay(new Date(now))), [tasks, view, tab, category, ascending, destination, now]);
-  const counts = { active: tasksForView(tasks, "list", "active", category).length,
-    completed: tasksForView(tasks, "list", "completed", category).length };
+  const groups = useMemo(() => groupAgenda(visible, now, ascending, tab === "completed"), [visible, now, ascending, tab]);
+  const counts = { active: tasksForView(tasks, "list", "active", category).length, completed: tasksForView(tasks, "list", "completed", category).length };
+  const active = tasks.filter(task => task.status !== "Submitted/Done" && (category === "All" || task.category === category));
+  const urgent = active.filter(task => { const delta = deadlineMillis(task) - now; return delta >= 0 && delta <= 48 * 3600000; }).length;
+  const overdue = active.filter(task => deadlineMillis(task) < now).length;
   const tabs: TaskTab[] = ["active", "completed"];
-  return <section className="panel min-w-0 p-4 sm:p-5" aria-label="Your tasks">
-    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-      <div><p className="eyebrow">Your workspace</p><h2 className="mt-1 text-xl font-semibold">Deadlines</h2></div>
-      <div className="flex rounded-lg border border-slate-800 bg-slate-950/50 p-1" role="group" aria-label="View">
-        {(["list", "calendar"] as const).map(mode => <button key={mode} type="button" aria-pressed={view === mode} onClick={() => setView(mode)}
-          className={`rounded-md px-4 py-2 text-sm capitalize transition-colors ${view === mode ? "bg-slate-700 font-medium text-white" : "text-slate-400 hover:text-slate-100"}`}>{mode}</button>)}
+  useEffect(() => {
+    if (!pendingFocus.current) return;
+    if (!visible.some(task => task.id === pendingFocus.current) && document.activeElement === document.body) listPanel.current?.focus();
+    pendingFocus.current = null;
+  }, [visible]);
+  const changeStatus = (taskId: string, status: Status) => { pendingFocus.current = taskId; onStatusChange(taskId, status); };
+  const titles = { today: "Today", upcoming: "Upcoming", calendar: "Your calendar", completed: "Completed" };
+  return <section className="task-workspace" aria-label="Your tasks">
+    <header className="workspace-heading"><div><p className="workspace-date">{ready ? new Date(now).toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" }) : "Your personal workspace"}</p>
+      <h1>{titles[destination]}<span className="heading-dot" aria-hidden="true" /></h1><p>{destination === "today" ? "A little focus for the day ahead." : destination === "completed" ? "A record of everything you’ve moved forward." : destination === "calendar" ? "The big picture, one day at a time." : "Everything coming up. Nothing slipping through."}</p>
+      <div aria-label="Deadline summary" className="deadline-summary"><span><strong>{ready ? counts.active : "—"}</strong> active</span><span><strong>{ready ? urgent : "—"}</strong> due within 48h</span><span className={ready && overdue > 0 ? "text-red-300" : ""}><strong>{ready ? overdue : "—"}</strong> overdue</span></div></div>
+      <div className="view-switch" role="group" aria-label="View">{(["list", "calendar"] as const).map(mode => {
+        const Icon = mode === "list" ? List : CalendarDays;
+        return <button key={mode} type="button" aria-label={`${mode === "list" ? "List" : "Calendar"} view`} aria-pressed={view === mode} onClick={() => navigate(mode === "calendar" ? "calendar" : "upcoming")}><Icon size={14} aria-hidden="true" />{mode}</button>;
+      })}</div>
+    </header>
+    <div className={`workspace-columns ${view === "calendar" || destination === "completed" ? "full-width" : ""}`}><div className="agenda-workspace">
+      <div className="agenda-toolbar">
+        {view === "list" ? <div className="completion-tabs" role="tablist" aria-label="Task completion">{tabs.map((mode, index) => <button key={mode} type="button" role="tab" id={`${id}-${mode}`} aria-selected={tab === mode} aria-controls={`${id}-panel`}
+          tabIndex={tab === mode ? 0 : -1} ref={element => { tabButtons.current[index] = element; }} onClick={() => navigate(mode === "completed" ? "completed" : "upcoming")}
+          onKeyDown={event => { if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return; event.preventDefault(); const next = event.key === "Home" ? 0 : event.key === "End" ? 1 : 1 - index;
+            navigate(tabs[next] === "completed" ? "completed" : "upcoming"); tabButtons.current[next]?.focus(); }}>
+          {mode === "active" ? "Active" : "Completed"}<span>{ready ? counts[mode] : "—"}</span></button>)}</div> : <p className="calendar-legend">All statuses · category colors</p>}
+        <div className="agenda-filters"><label className="filter-control"><ListFilter size={13} aria-hidden="true" /><span className="sr-only">Category</span><select value={category} onChange={event => onCategoryChange(event.target.value as Category | "All")}><option value="All">All categories</option>{CATEGORIES.map(item => <option key={item}>{item}</option>)}</select></label>
+          {view === "list" && <label className="filter-control"><ArrowDownWideNarrow size={13} aria-hidden="true" /><span className="sr-only">Sort</span><select value={ascending ? "nearest" : "latest"} onChange={event => setAscending(event.target.value === "nearest")}><option value="nearest">Nearest first</option><option value="latest">Latest first</option></select></label>}
+        </div>
       </div>
-    </div>
-    <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-3">
-      <label className="flex items-center gap-2 text-sm text-slate-300">Category<select className="control w-auto py-2" value={category}
-        onChange={event => onCategoryChange(event.target.value as Category | "All")}><option>All</option>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></label>
-      {view === "list" && <label className="flex items-center gap-2 text-sm text-slate-300">Sort<select className="control w-auto py-2" value={ascending ? "nearest" : "latest"}
-        onChange={event => setAscending(event.target.value === "nearest")}><option value="nearest">Nearest first</option><option value="latest">Latest first</option></select></label>}
-    </div>
-    <div className="mb-5 flex flex-wrap gap-2" aria-label="Category colors">{CATEGORIES.map(c =>
-      <span key={c} className={`rounded-md border px-2 py-0.5 text-xs ${CATEGORY_STYLE[c]}`}>{c}</span>)}</div>
-    {view === "list" && <div className="mb-4 flex gap-1 border-b border-slate-800" role="tablist" aria-label="Task completion">
-      {tabs.map((mode, index) => <button key={mode} type="button" role="tab" id={`${id}-${mode}`} aria-selected={tab === mode} aria-controls={`${id}-panel`}
-        tabIndex={tab === mode ? 0 : -1} ref={element => { tabButtons.current[index] = element; }}
-        onClick={() => setTab(mode)} onKeyDown={event => {
-          if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
-          event.preventDefault();
-          const next = event.key === "Home" ? 0 : event.key === "End" ? 1 : 1 - index;
-          setTab(tabs[next]); tabButtons.current[next]?.focus();
-        }} className={`border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${tab === mode ? "border-blue-400 text-blue-300" : "border-transparent text-slate-400 hover:text-slate-200"}`}>
-        {mode === "active" ? "Active" : "Completed"}<span className="ml-2 rounded bg-slate-800 px-1.5 py-0.5 text-xs tabular-nums">{ready ? counts[mode] : "—"}</span>
-      </button>)}
-    </div>}
-    <div ref={listPanel} id={view === "list" ? `${id}-panel` : undefined} role={view === "list" ? "tabpanel" : undefined}
-      aria-labelledby={view === "list" ? `${id}-${tab}` : undefined} tabIndex={view === "list" ? 0 : undefined}>
-      {!ready ? <div className="py-12 text-center"><p role="status" className="text-slate-400">{hasError ? "Tasks could not be loaded." : "Loading your account tasks…"}</p>
-        {hasError && <button type="button" className="button-secondary mt-4" onClick={onRetry}>Retry</button>}</div> : view === "calendar" ?
-        <CalendarView tasks={visible} allTasks={tasks} now={now} onStatusChange={onStatusChange} onDeleteTask={onDeleteTask} onEditTask={onEditTask} disabled={saving} /> :
-        visible.length === 0 ? <div className="rounded-xl border border-dashed border-slate-800 px-4 py-14 text-center">
-          <p className="font-medium text-slate-200">{tab === "active" ? "You’re all caught up" : "No completed tasks in this view"}</p>
-          <p className="mt-2 text-sm text-slate-400">{tab === "active" ? "Add a deadline, import a feed, or choose another category." : "Finished tasks stay here, with their dates and useful links."}</p>
-        </div> : <ul className="space-y-3">{visible.map(task => <li key={task.id}>
-          <TaskRow task={task} tasks={tasks} onEditTask={onEditTask} now={now} disabled={saving} onStatusChange={onStatusChange}
-            onDeleteTask={async id => { await onDeleteTask(id); listPanel.current?.focus(); }} />
-        </li>)}</ul>}
-    </div>
+      <div ref={listPanel} id={view === "list" ? `${id}-panel` : undefined} role={view === "list" ? "tabpanel" : undefined} aria-labelledby={view === "list" ? `${id}-${tab}` : undefined} tabIndex={view === "list" ? 0 : -1} aria-busy={!ready || saving} className="task-list">
+        {!ready ? <div className="workspace-loading"><p role="status">{hasError ? "Tasks could not be loaded." : "Loading your deadlines…"}</p>
+          {hasError ? <button type="button" className="button-secondary mt-4" onClick={onRetry}>Retry</button> : <div className="skeleton-rows" aria-hidden="true">{[1, 2, 3, 4].map(item => <div key={item}><i /><span /><small /></div>)}</div>}</div> :
+          view === "calendar" ? <CalendarView tasks={visible} allTasks={tasks} now={now} onStatusChange={changeStatus} onDeleteTask={onDeleteTask} onEditTask={onEditTask} disabled={saving} /> :
+          visible.length === 0 ? <div className="workspace-empty"><span className="empty-icon">{tab === "completed" ? <CheckCheck size={23} aria-hidden="true" /> : <Sparkles size={23} aria-hidden="true" />}</span>
+            <h2>{tab === "completed" ? "Your progress will live here" : destination === "today" ? "A clear day ahead" : "A little room to breathe"}</h2>
+            <p>{tab === "completed" ? "Completed tasks stay here, along with their dates and useful links." : category !== "All" ? "No active deadlines in this category. Try another filter or add a task." : destination === "today" ? "Nothing is due today. Check Upcoming for what’s next." : "Add your first deadline, or connect a calendar feed in Settings."}</p>
+            {tab === "active" && onCreate && <button type="button" className="button-secondary" disabled={saving} onClick={onCreate}><Plus size={14} aria-hidden="true" />Add a task</button>}
+          </div> : groups.map(group => <section key={group.label} className="agenda-group" aria-label={group.label}><header className="agenda-group-heading"><h2 className={group.label === "Overdue" ? "text-red-300" : ""}>{group.label}</h2><span>{group.tasks.length}</span><div /></header>
+            <ul>{group.tasks.map(task => <li key={task.id}><TaskRow task={task} tasks={tasks} onEditTask={onEditTask} now={now} disabled={saving} onStatusChange={changeStatus} onDeleteTask={async taskId => { await onDeleteTask(taskId); listPanel.current?.focus(); }} /></li>)}</ul>
+          </section>)}
+      </div>
+      <p className="agenda-timezone">Times use your browser timezone. All-day tasks have no specified due time.</p>
+    </div>{view === "list" && destination !== "completed" && <UpcomingPanel tasks={tasks.filter(task => category === "All" || task.category === category)} now={now} ready={ready} disabled={saving} onEditTask={onEditTask} onCalendar={() => navigate("calendar")} />}</div>
   </section>;
 }

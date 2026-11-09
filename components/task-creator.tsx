@@ -5,20 +5,23 @@ import { stableSaveAttempt, blankExtraction, type Extraction, type SaveAttempt }
 import ScreenshotInput from "./screenshot-input";
 import TaskReviewForm from "./task-review-form";
 import ManualTaskForm from "./manual-task-form";
+import { ImagePlus, TextCursorInput } from "lucide-react";
+import { imageFileError } from "@/lib/image-limits";
 
-export default function TaskCreator({ tasks, disabled, timezone = "America/New_York", onAnalyze, onSaveTask, onBusyChange }: {
+export default function TaskCreator({ tasks, disabled, timezone = "America/New_York", onAnalyze, onSaveTask, onBusyChange, initialFiles }: {
   tasks: readonly Task[]; disabled: boolean; timezone?: string;
   onAnalyze: (file: File, signal: AbortSignal) => Promise<Extraction>;
   onSaveTask: (task: Task) => Promise<void>;
   onBusyChange?: (busy: boolean) => void;
+  initialFiles?: readonly File[];
 }) {
   const [mode, setMode] = useState<"screenshot" | "manual">("screenshot");
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | null>(() => initialFiles?.length === 1 && !imageFileError(initialFiles[0]) ? initialFiles[0] : null);
   const [extraction, setExtraction] = useState<Extraction | null>(null);
   const [selected, setSelected] = useState<number | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
+  const [error, setError] = useState(() => !initialFiles?.length ? "" : initialFiles.length !== 1 ? "Choose one screenshot at a time." : imageFileError(initialFiles[0]) || "");
   const [notice, setNotice] = useState("");
   const sequence = useRef(0);
   const pending = useRef<SaveAttempt | null>(null);
@@ -59,7 +62,7 @@ export default function TaskCreator({ tasks, disabled, timezone = "America/New_Y
   const unavailable = disabled || analyzing || saving;
   return <section className="panel p-4 sm:p-5" aria-label="Create a task">
     <h2 className="mb-4 text-base font-semibold">Add a task</h2>
-    <div role="tablist" aria-label="Task creation method" className="mb-4 flex gap-1 rounded-lg border border-slate-800 bg-slate-950/40 p-1">
+    <div role="tablist" aria-label="Task creation method" className="creator-tabs">
       {(["screenshot", "manual"] as const).map((tab, index) => <button type="button" key={tab} role="tab" id={`${id}-${tab}`} aria-controls={`${id}-panel`}
         aria-selected={mode === tab} tabIndex={mode === tab ? 0 : -1} disabled={analyzing || saving}
         ref={element => { tabs.current[index] = element; }} onClick={() => setMode(tab)}
@@ -67,8 +70,8 @@ export default function TaskCreator({ tasks, disabled, timezone = "America/New_Y
           if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
           event.preventDefault(); const next = event.key === "Home" ? 0 : event.key === "End" ? 1 : 1 - index;
           setMode(next === 0 ? "screenshot" : "manual"); tabs.current[next]?.focus();
-        }} className={`flex-1 rounded-md px-2 py-2 text-xs font-medium ${mode === tab ? "bg-slate-700 text-white" : "text-slate-400 hover:text-slate-100"}`}>
-        {tab === "screenshot" ? "Paste Screenshot" : "Manual Entry"}</button>)}
+        }}>
+        {tab === "screenshot" ? <ImagePlus size={14} aria-hidden="true" /> : <TextCursorInput size={14} aria-hidden="true" />}{tab === "screenshot" ? "Paste Screenshot" : "Manual Entry"}</button>)}
     </div>
     <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-${mode}`}>
       {mode === "manual" ? <ManualTaskForm tasks={tasks} disabled={unavailable} onSave={save} /> : <>

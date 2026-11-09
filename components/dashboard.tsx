@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { browserClient } from "@/lib/supabase/client";
-import { deadlineMillis, isTask, type Category, type Status, type Task } from "@/lib/tasks";
+import { isTask, type Category, type Status, type Task } from "@/lib/tasks";
 import { parseExtraction, validCalendarDate, validTimezone } from "@/lib/assignment-draft";
 import { taskChanges } from "@/lib/task-editing";
 import TaskWorkspace from "./task-workspace";
@@ -85,13 +85,6 @@ export default function Dashboard({ user, timezone }: { user: { id: string; emai
       setLegacyCount(decoded.length);
     } catch { setMigrationError("Your browser backup could not be read. It has been preserved unchanged."); }
   }, [user.id]);
-
-  const active = tasks.filter(task => task.status !== "Submitted/Done");
-  const urgent = active.filter(task => {
-    const delta = deadlineMillis(task) - now;
-    return delta >= 0 && delta <= 48 * 3600000;
-  }).length;
-  const overdue = active.filter(task => deadlineMillis(task) < now).length;
 
   async function analyzeScreenshot(file: File, signal: AbortSignal) {
     const body = new FormData(); body.set("image", file);
@@ -199,7 +192,7 @@ export default function Dashboard({ user, timezone }: { user: { id: string; emai
 
   return <WorkspaceShell email={user.email} tasks={tasks} ready={ready} saving={saving} hasError={Boolean(storageError)} now={now}
     category={category} onCategoryChange={setCategory} onSignOut={() => void signOut()}
-    renderCreator={onBusyChange => <TaskCreator tasks={tasks} disabled={!ready || saving} timezone={timezone} onAnalyze={analyzeScreenshot} onSaveTask={saveCreatedTask} onBusyChange={onBusyChange} />}
+    renderCreator={(onBusyChange, initialFiles) => <TaskCreator tasks={tasks} disabled={!ready || saving} timezone={timezone} onAnalyze={analyzeScreenshot} onSaveTask={saveCreatedTask} onBusyChange={onBusyChange} initialFiles={initialFiles} />}
     settings={<section className="settings-section">
       <h3>Calendar imports</h3><p className="mb-5">Connect a private Canvas or Gradescope ICS feed. Import again to refresh deadlines and keep your statuses. New Canvas assignments start today.</p>
       <form onSubmit={importFeed} className="space-y-4 text-sm text-slate-300">
@@ -209,15 +202,14 @@ export default function Dashboard({ user, timezone }: { user: { id: string; emai
         {importMessage && <p role="status" className="text-sm leading-relaxed text-slate-300">{importMessage}</p>}
       </form><p className="mt-4">Gradescope needs an ICS feed from your institution or an exporter. A course page URL will not work. Feed URLs remain private and are cleared after a successful import.</p>
     </section>}>
-    {(section, onSectionChange) => <>
+    {(section, onSectionChange, onCreate) => <>
     {storageError && <p role="alert" className="alert-error mb-4">{storageError}</p>}
     {migrationError && <p role="alert" className="alert-info mb-4">{migrationError}</p>}
     {notice && <p role="status" className="alert-info mb-4">{notice}</p>}
     {legacyCount > 0 && <section className="alert-info mb-5"><h2 className="font-semibold">Bring your browser tasks into this account</h2>
       <p className="my-2">Import {legacyCount} saved tasks to {user.email}. Existing account tasks and your browser backup will be preserved.</p>
       <button type="button" disabled={!ready || saving} className={button} onClick={migrateBackup}>Import browser tasks</button></section>}
-    <div aria-label="Deadline summary" className="deadline-summary"><span><strong>{ready ? active.length : "—"}</strong> active</span><span><strong>{ready ? urgent : "—"}</strong> due within 48h</span><span className={overdue > 0 ? "text-red-300" : ""}><strong>{ready ? overdue : "—"}</strong> overdue</span></div>
-      <TaskWorkspace section={section} onSectionChange={onSectionChange} tasks={tasks} onEditTask={editTask} now={now} ready={ready} saving={saving} category={category} onCategoryChange={setCategory}
+      <TaskWorkspace section={section} onSectionChange={onSectionChange} onCreate={onCreate} tasks={tasks} onEditTask={editTask} now={now} ready={ready} saving={saving} category={category} onCategoryChange={setCategory}
         onStatusChange={changeStatus} onDeleteTask={deleteTask} hasError={Boolean(storageError)} onRetry={() => void loadTasks()} />
     </>}
   </WorkspaceShell>;

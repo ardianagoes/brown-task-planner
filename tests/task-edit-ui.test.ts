@@ -83,5 +83,5 @@ test("Edit is available in Active, Completed and calendar day details", async ()
   await click([...container.querySelectorAll('[role="tab"]')].find(item => item.textContent!.startsWith("Completed"))!);
   await click(q('button[aria-label="Edit Done homework"]')); assert.equal(q<HTMLSelectElement>('[name="status"]').value, "Submitted/Done"); await click(button("Cancel"));
   await click(button("calendar")); await click(q('button[aria-label*="Existing homework"][aria-label*="Open day details"]'));
-  await click(q('button[aria-label="Edit Existing homework"]')); assert.ok(container.querySelector('form[aria-label="Edit assignment"]'));
+  await click(q('dialog[open] button[aria-label="Edit Existing homework"]')); assert.ok(container.querySelector('dialog[open] form[aria-label="Edit assignment"]'));
 });

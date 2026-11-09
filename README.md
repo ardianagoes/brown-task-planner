@@ -9,12 +9,13 @@ Deadline Desk is a full-stack task planner built to make managing college deadli
 ## Features
 
 - **Unified deadline dashboard:** Track active, upcoming, overdue, and completed tasks in one place.
-- **Calendar and list views:** Browse deadlines by day, filter by category, and sort by due date.
+- **Today and Upcoming:** Scan deadlines grouped into Today, Tomorrow, Later This Week, Overdue and Later, with a single status selector per task.
+- **Calendar and list views:** Browse a full desktop month calendar or a mobile agenda, filter by category, and sort by due date.
 - **Canvas and Gradescope imports:** Import assignments from compatible private ICS calendar feeds and refresh existing tasks without resetting their completion status.
 - **AI screenshot extraction:** Paste, drag, or upload a screenshot of an assignment or schedule to extract potential tasks with OpenAI. Review and edit detected details before saving.
 - **Manual task management:** Create, edit, complete, and delete tasks, including all-day deadlines, exact times, categories, and useful links.
 - **Private accounts:** Sign up, sign in, and manage tasks across devices with Supabase authentication and PostgreSQL storage.
-- **Responsive interface:** A dark-themed workspace designed for desktop and mobile.
+- **Responsive interface:** A refined dark workspace with self-hosted Geist typography, Lucide icons, collapsible desktop navigation and mobile navigation.
 
 Screenshot extraction is optional and requires a server-side OpenAI API key. Manual entry, calendar imports, and task management do not require an OpenAI key.
 
@@ -22,7 +23,7 @@ Screenshot extraction is optional and requires a server-side OpenAI API key. Man
 
 | Layer | Technologies |
 | --- | --- |
-| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4 |
+| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, Lucide, self-hosted Geist |
 | Backend | Next.js API route handlers |
 | Authentication and database | Supabase Auth, PostgreSQL, Row Level Security |
 | AI | OpenAI Responses API for image-based task extraction |
@@ -85,12 +86,21 @@ Open **http://127.0.0.1:3000**.
 
 ## How it works
 
-1. **Add tasks** manually, from a compatible Canvas/Gradescope ICS feed, or by submitting a screenshot for analysis.
+1. **Add tasks** using the Add task modal. Paste Screenshot is the default tab; Manual Entry is always available. Connect Canvas/Gradescope ICS feeds under Settings & imports.
 2. **Review deadlines** before saving AI-extracted tasks. Uncertain details are flagged for confirmation.
 3. **Stay organized** using deadline summaries, category filters, a calendar, and active/completed task views.
 4. **Sync across devices** through your authenticated Supabase account.
 
 Calendar imports require an actual ICS feed URL, not a course homepage or Gradescope assignment page.
+
+Completed tasks remain in Completed and in both calendar layouts. Status selectors
+keep To Do, In Progress and Submitted/Done as the stored states. Editing and deletion
+remain available in each layout. Upcoming includes past and distant deadlines so
+grouping never silently hides a task. All-day dates remain literal calendar dates;
+timed deadlines and day grouping use the browser timezone.
+
+The [UI refactor record](docs/UI_REDESIGN.md) documents phase checks, responsive and
+keyboard review, preserved contracts and the existing framework audit finding.
 
 ## Security and privacy
 

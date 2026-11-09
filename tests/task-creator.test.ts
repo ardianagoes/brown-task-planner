@@ -34,11 +34,11 @@ function extraction(candidates = [candidate()]): Extraction {
   return parseExtraction({ candidates, notes: [] }, "2026-10-07", "America/New_York");
 }
 const file = (type = "image/png", size = 10) => new File([new Uint8Array(size)], "screen.png", { type });
-async function mount(options: { tasks?: Task[]; onAnalyze?: (file: File) => Promise<Extraction>; onSave?: (task: Task) => Promise<void> } = {}) {
+async function mount(options: { tasks?: Task[]; initialFiles?: File[]; onAnalyze?: (file: File) => Promise<Extraction>; onSave?: (task: Task) => Promise<void> } = {}) {
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   const saved: Task[] = [], analyzed: File[] = [];
   await act(async () => root.render(createElement(TaskCreator, {
-    tasks: options.tasks || [], disabled: false,
+    tasks: options.tasks || [], disabled: false, initialFiles: options.initialFiles,
     onAnalyze: options.onAnalyze || (async image => { analyzed.push(image); return extraction(); }),
     onSaveTask: options.onSave || (async task => { saved.push(task); }),
   })));
@@ -83,6 +83,21 @@ test("screenshot tab defaults on; Ctrl+V previews locally; ordinary text-field p
   assert.equal(analyzed.length, 0); assert.equal(saved.length, 0);
   await click(button("Remove screenshot")); assert.equal(container.querySelector("img"), null);
   assert.ok(revoked.includes("blob:local-preview"));
+});
+
+test("a workspace-pasted screenshot initializes the modal locally without automatic analysis or saving", async () => {
+  const { analyzed, saved } = await mount({ initialFiles: [file()] });
+  assert.ok(query('img[alt="Screenshot preview"]')); assert.equal(analyzed.length, 0); assert.equal(saved.length, 0);
+  assert.equal(button("Analyze Screenshot").disabled, false);
+  await click(button("Remove screenshot")); assert.equal(container.querySelector("img"), null);
+  assert.equal(button("Analyze Screenshot").disabled, true);
+});
+
+test("workspace-pasted files use the existing image validation and allow correction without uploading", async () => {
+  const { analyzed, saved } = await mount({ initialFiles: [file("image/gif")] });
+  assert.match(query('[role="alert"]').textContent!, /PNG/); assert.equal(container.querySelector("img"), null);
+  assert.equal(analyzed.length, 0); assert.equal(saved.length, 0);
+  await upload(); assert.ok(container.querySelector("img")); assert.equal(container.querySelector('[role="alert"]'), null);
 });
 
 test("drag/drop and file chooser validate single images, MIME and size; replacing updates local preview", async () => {

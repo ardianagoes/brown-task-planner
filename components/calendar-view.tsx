@@ -1,73 +1,59 @@
 "use client";
 import { useMemo, useRef, useState } from "react";
-import { CATEGORY_STYLE, deadlineMillis, localDay, taskDay, urgency, type Status, type Task } from "@/lib/tasks";
+import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import { CATEGORIES, localDay, urgency, type Status, type Task } from "@/lib/tasks";
+import { groupCalendarDays } from "./agenda-groups";
 import CalendarDayDetails from "./calendar-day-details";
+import TaskRow from "./task-row";
 
 export default function CalendarView({ tasks, allTasks, now, onStatusChange, onDeleteTask, onEditTask, disabled = false }: {
   tasks: Task[]; now: number; onStatusChange: (id: string, status: Status) => void; disabled?: boolean;
-  onDeleteTask: (id: string) => Promise<void>;
-  allTasks: readonly Task[]; onEditTask: (task: Task) => Promise<void>;
+  onDeleteTask: (id: string) => Promise<void>; allTasks: readonly Task[]; onEditTask: (task: Task) => Promise<void>;
 }) {
-  const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
+  const [month, setMonth] = useState(() => { const date = new Date(now); return new Date(date.getFullYear(), date.getMonth(), 1); });
   const [selected, setSelected] = useState<{ day: string; taskId?: string } | null>(null);
-  const calendarContainer = useRef<HTMLDivElement>(null);
-  const byDay = useMemo(() => {
-    const grouped = new Map<string, Task[]>();
-    for (const task of tasks) {
-      const day = taskDay(task);
-      grouped.set(day, [...(grouped.get(day) || []), task]);
-    }
-    for (const dayTasks of grouped.values()) dayTasks.sort((a, b) => deadlineMillis(a) - deadlineMillis(b));
-    return grouped;
-  }, [tasks]);
-  const start = new Date(month.getFullYear(), month.getMonth(), 1);
-  start.setDate(start.getDate() - start.getDay());
+  const calendarContainer = useRef<HTMLDivElement>(null), agendaContainer = useRef<HTMLDivElement>(null);
+  const grouped = useMemo(() => groupCalendarDays(tasks), [tasks]);
+  const byDay = useMemo(() => new Map(grouped.map(group => [group.day, group.tasks])), [grouped]);
+  const start = new Date(month.getFullYear(), month.getMonth(), 1); start.setDate(start.getDate() - start.getDay());
   const days = Array.from({ length: 42 }, (_, i) => new Date(start.getFullYear(), start.getMonth(), start.getDate() + i));
+  const monthKey = localDay(month).slice(0, 7), agenda = grouped.filter(group => group.day.startsWith(monthKey));
   function moveMonth(delta: number) { setMonth(previous => new Date(previous.getFullYear(), previous.getMonth() + delta, 1)); }
-  return <div>
-    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-      <h3 className="text-base font-semibold" aria-live="polite">{month.toLocaleString(undefined, { month: "long", year: "numeric" })}</h3>
-      <div className="flex gap-1.5">
-        <button type="button" className="button-secondary" onClick={() => moveMonth(-1)} aria-label="Previous month">Previous</button>
-        <button type="button" className="button-secondary" onClick={() => setMonth(new Date(new Date().getFullYear(), new Date().getMonth(), 1))}>Today</button>
-        <button type="button" className="button-secondary" onClick={() => moveMonth(1)} aria-label="Next month">Next</button>
-      </div>
+  return <div className="calendar-view">
+    <div className="calendar-toolbar"><h3 aria-live="polite"><CalendarDays size={16} aria-hidden="true" />{month.toLocaleString(undefined, { month: "long", year: "numeric" })}</h3>
+      <div><button type="button" className="icon-button" onClick={() => moveMonth(-1)} aria-label="Previous month"><ChevronLeft size={17} aria-hidden="true" /></button>
+        <button type="button" className="calendar-today" onClick={() => { const date = new Date(now); setMonth(new Date(date.getFullYear(), date.getMonth(), 1)); }}>Today</button>
+        <button type="button" className="icon-button" onClick={() => moveMonth(1)} aria-label="Next month"><ChevronRight size={17} aria-hidden="true" /></button></div>
     </div>
-    <p className="mb-4 text-xs text-slate-400">All statuses are shown. Open a day to see full details. Red dots flag urgent deadlines.</p>
-    <div ref={calendarContainer} className="overflow-x-auto pb-2" tabIndex={0} aria-label="Monthly calendar; scroll horizontally on smaller screens">
-      <div className="grid min-w-[600px] grid-cols-7 gap-px overflow-hidden rounded-xl border border-slate-800 bg-slate-800">
-        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => <div key={day} className="bg-slate-900 p-2 text-center text-xs font-medium text-slate-400">{day}</div>)}
+    <div className="calendar-category-key" aria-label="Category colors">{CATEGORIES.map(category => <span key={category}><i className="category-dot" data-category={category} />{category}</span>)}</div>
+    <div ref={calendarContainer} className="calendar-desktop" tabIndex={-1} aria-label="Monthly calendar">
+      <div className="calendar-grid">{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map(day => <div key={day} className="calendar-weekday">{day}</div>)}
         {days.map(day => {
-          const key = localDay(day);
-          const dayTasks = byDay.get(key) || [];
-          const today = key === localDay(new Date(now));
-          return <section key={key} aria-label={day.toLocaleDateString(undefined, { dateStyle: "full" })}
-            className={`h-28 min-w-0 p-1.5 sm:p-2 ${day.getMonth() === month.getMonth() ? "bg-slate-900" : "bg-slate-950/80"}`}>
-            <p className={`mb-1 inline-flex h-6 w-6 items-center justify-center rounded-md text-xs ${today ? "bg-blue-600 font-bold text-white" : "text-slate-400"}`}>
-              <time dateTime={key} aria-current={today ? "date" : undefined}>{day.getDate()}</time>
-            </p>
-            <div className="space-y-0.5">{dayTasks.slice(0, 2).map(task => {
-              const flag = urgency(task, now);
-              const time = task.allDay ? "All day" : new Date(task.dueAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+          const key = localDay(day), dayTasks = byDay.get(key) || [], today = key === localDay(new Date(now));
+          return <section key={key} aria-label={day.toLocaleDateString(undefined, { dateStyle: "full" })} className={`calendar-cell ${day.getMonth() !== month.getMonth() ? "outside-month" : ""}`}>
+            <time className={`calendar-day-number ${today ? "is-today" : ""}`} dateTime={key} aria-current={today ? "date" : undefined}>{day.getDate()}</time>
+            <div className="calendar-events">{dayTasks.slice(0, 2).map(task => {
+              const flag = urgency(task, now), time = task.allDay ? "All day" : new Date(task.dueAt).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
               const completed = task.status === "Submitted/Done";
-              return <button key={task.id} type="button" title={`${time} · ${task.name} · ${flag.text}`}
-                aria-label={`${task.name}, ${time}, ${flag.text}. Open day details`}
-                onClick={() => setSelected({ day: key, taskId: task.id })}
-                className={`flex h-5 w-full min-w-0 items-center gap-1 rounded border-l-2 px-1 text-left text-[11px] transition-colors hover:brightness-125 ${CATEGORY_STYLE[task.category]} ${completed ? "saturate-50" : ""}`}>
-                {flag.urgent && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400" aria-hidden="true" />}
-                <span className={`shrink-0 text-[10px] tabular-nums ${completed ? "text-slate-400 line-through" : ""}`}>{time}</span>
-                <span className={`truncate ${completed ? "text-slate-400 line-through" : ""}`}>{task.name}</span>
+              return <button key={task.id} type="button" title={`${time} · ${task.name} · ${flag.text}`} aria-label={`${task.name}, ${time}, ${flag.text}. Open day details`}
+                onClick={() => setSelected({ day: key, taskId: task.id })} className="calendar-event" data-category={task.category} data-completed={completed}>
+                <span className="category-dot" data-category={task.category} /><span className="calendar-event-copy"><span>{time}</span><strong>{task.name}</strong></span>
+                {flag.urgent && <span className="calendar-urgent" aria-label={flag.text} />}
               </button>;
             })}</div>
-            {dayTasks.length > 2 && <button type="button" className="mt-1 min-h-5 rounded px-1 text-xs font-medium text-blue-300 hover:bg-slate-800"
-              aria-label={`Show ${dayTasks.length - 2} more deadlines for ${day.toLocaleDateString(undefined, { dateStyle: "full" })}`}
-              onClick={() => setSelected({ day: key })}>+{dayTasks.length - 2} more</button>}
+            {dayTasks.length > 2 && <button type="button" className="calendar-overflow" aria-label={`Show ${dayTasks.length - 2} more deadlines for ${day.toLocaleDateString(undefined, { dateStyle: "full" })}`} onClick={() => setSelected({ day: key })}>+{dayTasks.length - 2} more</button>}
           </section>;
         })}
       </div>
     </div>
-    {selected && <CalendarDayDetails day={selected.day} initialTaskId={selected.taskId} tasks={byDay.get(selected.day) || []}
-      allTasks={allTasks} onEditTask={onEditTask} now={now} disabled={disabled} onStatusChange={onStatusChange} onDeleteTask={onDeleteTask}
+    <div ref={agendaContainer} className="calendar-agenda task-list" tabIndex={-1} aria-label="Monthly agenda">
+      <p className="mobile-agenda-note">Your month, in agenda view. All statuses are shown.</p>
+      {agenda.length === 0 ? <p className="calendar-empty">No deadlines this month. Choose another month or add a task.</p> : agenda.map(group => <section key={group.day} className="agenda-group" aria-label={new Date(`${group.day}T12:00:00`).toLocaleDateString(undefined, { dateStyle: "full" })}>
+        <header className="agenda-group-heading"><h4>{new Date(`${group.day}T12:00:00`).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" })}</h4><span>{group.tasks.length}</span><div /></header>
+        <ul>{group.tasks.map(task => <li key={task.id}><TaskRow task={task} tasks={allTasks} now={now} disabled={disabled} onStatusChange={onStatusChange} onEditTask={onEditTask} variant="calendar" onDeleteTask={async id => { await onDeleteTask(id); agendaContainer.current?.focus(); }} /></li>)}</ul>
+      </section>)}
+    </div>
+    {selected && <CalendarDayDetails day={selected.day} initialTaskId={selected.taskId} tasks={byDay.get(selected.day) || []} allTasks={allTasks} onEditTask={onEditTask} now={now} disabled={disabled} onStatusChange={onStatusChange} onDeleteTask={onDeleteTask}
       onClose={() => { setSelected(null); calendarContainer.current?.focus(); }} />}
   </div>;
 }

@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { browserClient } from "@/lib/supabase/client";
-import { deadlineMillis, isTask, type Category, type Status, type Task } from "@/lib/tasks";
+import { isTask, type Category, type Status, type Task } from "@/lib/tasks";
 import { parseExtraction, validCalendarDate, validTimezone } from "@/lib/assignment-draft";
 import { taskChanges } from "@/lib/task-editing";
 import TaskWorkspace from "./task-workspace";
 import TaskCreator from "./task-creator";
+import WorkspaceShell from "./workspace-shell";
 
 const STORAGE_KEY = "deadline-desk.tasks.v1";
 const control = "control";
@@ -84,13 +85,6 @@ export default function Dashboard({ user, timezone }: { user: { id: string; emai
       setLegacyCount(decoded.length);
     } catch { setMigrationError("Your browser backup could not be read. It has been preserved unchanged."); }
   }, [user.id]);
-
-  const active = tasks.filter(task => task.status !== "Submitted/Done");
-  const urgent = active.filter(task => {
-    const delta = deadlineMillis(task) - now;
-    return delta >= 0 && delta <= 48 * 3600000;
-  }).length;
-  const overdue = active.filter(task => deadlineMillis(task) < now).length;
 
   async function analyzeScreenshot(file: File, signal: AbortSignal) {
     const body = new FormData(); body.set("image", file);
@@ -196,44 +190,27 @@ export default function Dashboard({ user, timezone }: { user: { id: string; emai
     } finally { busy.current = false; setSaving(false); setImporting(false); }
   }
 
-  return <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
-    <header className="mb-6 flex flex-wrap items-start justify-between gap-4 border-b border-slate-800 pb-5">
-      <div><p className="eyebrow">Personal workspace</p>
-        <h1 className="mt-1.5 text-3xl font-bold tracking-tight">Deadline desk</h1>
-        <p className="mt-2 text-sm text-slate-400">Homework, applications, and everything due next.</p></div>
-      <div className="flex items-center gap-3 rounded-lg border border-slate-800 bg-slate-900/50 px-3 py-2">
-        <div><p className="max-w-60 truncate text-xs text-slate-300">{user.email}</p><p className="mt-0.5 text-[11px] text-slate-400">Saved to your account</p></div>
-        <button type="button" disabled={saving} className="button-secondary" onClick={signOut}>Sign out</button>
-      </div>
-    </header>
+  return <WorkspaceShell email={user.email} tasks={tasks} ready={ready} saving={saving} hasError={Boolean(storageError)} now={now}
+    category={category} onCategoryChange={setCategory} onSignOut={() => void signOut()}
+    renderCreator={(onBusyChange, initialFiles) => <TaskCreator tasks={tasks} disabled={!ready || saving} timezone={timezone} onAnalyze={analyzeScreenshot} onSaveTask={saveCreatedTask} onBusyChange={onBusyChange} initialFiles={initialFiles} />}
+    settings={<section className="settings-section">
+      <h3>Calendar imports</h3><p className="mb-5">Connect a private Canvas or Gradescope ICS feed. Import again to refresh deadlines and keep your statuses. New Canvas assignments start today.</p>
+      <form onSubmit={importFeed} className="space-y-4 text-sm text-slate-300">
+        <label className="block">Source<select name="source" className={`${control} mt-1.5`}><option>Canvas</option><option>Gradescope</option></select></label>
+        <label className="block">Private calendar feed URL<input name="feed" className={`${control} mt-1.5`} type="text" required maxLength={4096} placeholder="https://…/calendar.ics" autoComplete="off" spellCheck={false} /></label>
+        <button className={button} type="submit" disabled={!ready || saving}>{importing ? "Importing…" : "Import feed"}</button>
+        {importMessage && <p role="status" className="text-sm leading-relaxed text-slate-300">{importMessage}</p>}
+      </form><p className="mt-4">Gradescope needs an ICS feed from your institution or an exporter. A course page URL will not work. Feed URLs remain private and are cleared after a successful import.</p>
+    </section>}>
+    {(section, onSectionChange, onCreate) => <>
     {storageError && <p role="alert" className="alert-error mb-4">{storageError}</p>}
     {migrationError && <p role="alert" className="alert-info mb-4">{migrationError}</p>}
     {notice && <p role="status" className="alert-info mb-4">{notice}</p>}
     {legacyCount > 0 && <section className="alert-info mb-5"><h2 className="font-semibold">Bring your browser tasks into this account</h2>
       <p className="my-2">Import {legacyCount} saved tasks to {user.email}. Existing account tasks and your browser backup will be preserved.</p>
       <button type="button" disabled={!ready || saving} className={button} onClick={migrateBackup}>Import browser tasks</button></section>}
-    <section aria-label="Deadline summary" className="mb-6 grid grid-cols-3 gap-3">
-      {[{ label: "Active tasks", value: active.length }, { label: "Due within 48h", value: urgent },
-        { label: "Overdue", value: overdue }].map(item => <div key={item.label} className="panel px-3 py-4 sm:px-5">
-        <p className="text-xs text-slate-400">{item.label}</p><p className={`mt-1.5 text-2xl font-semibold tabular-nums ${item.label !== "Active tasks" && item.value > 0 ? "text-red-300" : "text-slate-100"}`}>{ready ? item.value : "—"}</p></div>)}
-    </section>
-    <div className="grid items-start gap-5 lg:grid-cols-[280px_1fr]">
-      <aside className="space-y-5">
-        <TaskCreator tasks={tasks} disabled={!ready || saving} timezone={timezone} onAnalyze={analyzeScreenshot} onSaveTask={saveCreatedTask} />
-        <section className="panel p-4 sm:p-5">
-          <h2 className="mb-2 text-base font-semibold">Import a calendar</h2>
-          <p className="mb-4 text-xs leading-relaxed text-slate-400">New Canvas assignments start today. Import again to refresh deadlines and keep your statuses.</p>
-          <form onSubmit={importFeed} className="space-y-3 text-sm text-slate-300">
-            <label className="block">Source<select name="source" className={`${control} mt-1.5`}><option>Canvas</option><option>Gradescope</option></select></label>
-            <label className="block">Private calendar feed URL<input name="feed" className={`${control} mt-1.5`} type="text" required maxLength={4096} placeholder="https://…/calendar.ics" autoComplete="off" spellCheck={false} /></label>
-            <button className={`${button} w-full`} type="submit" disabled={!ready || saving}>{importing ? "Importing…" : "Import feed"}</button>
-            {importMessage && <p role="status" className="text-xs leading-relaxed text-slate-300">{importMessage}</p>}
-          </form>
-          <p className="mt-3 text-xs leading-relaxed text-slate-400">Gradescope needs an ICS feed from your institution or an exporter. A course page URL will not work.</p>
-        </section>
-      </aside>
-      <TaskWorkspace tasks={tasks} onEditTask={editTask} now={now} ready={ready} saving={saving} category={category} onCategoryChange={setCategory}
+      <TaskWorkspace section={section} onSectionChange={onSectionChange} onCreate={onCreate} tasks={tasks} onEditTask={editTask} now={now} ready={ready} saving={saving} category={category} onCategoryChange={setCategory}
         onStatusChange={changeStatus} onDeleteTask={deleteTask} hasError={Boolean(storageError)} onRetry={() => void loadTasks()} />
-    </div>
-  </main>;
+    </>}
+  </WorkspaceShell>;
 }

@@ -102,6 +102,12 @@ timed deadlines and day grouping use the browser timezone.
 The [UI refactor record](docs/UI_REDESIGN.md) documents phase checks, responsive and
 keyboard review, preserved contracts and the existing framework audit finding.
 
+The Deadline Desk mark is a violet D/check monogram. Its vector source is
+`app/icon.svg`, also used in the workspace sidebar. After editing it, run
+`node scripts/generate-icons.cjs` to regenerate the 16/32/48px favicon,
+180px Apple home-screen icon and 256px PNG brand asset. Next.js automatically
+includes the favicon/SVG/Apple icon metadata; no external icon service is used.
+
 ## Security and privacy
 
 - Task reads and writes require an authenticated user; PostgreSQL Row Level Security policies restrict access by user ID.

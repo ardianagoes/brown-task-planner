@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useState, type ReactNode } from "react";
-import { CalendarDays, CheckCheck, ChevronRight, CircleHelp, Layers2, LogOut, PanelLeftClose, PanelLeftOpen, Plus, Settings2, Sun, Zap } from "lucide-react";
+import { CalendarDays, CheckCheck, ChevronRight, CircleHelp, Layers2, LogOut, PanelLeftClose, PanelLeftOpen, Plus, Settings2, Sun } from "lucide-react";
 import { CATEGORIES, localDay, taskDay, type Category, type Task } from "@/lib/tasks";
 import WorkspaceDialog from "./workspace-dialog";
 
@@ -36,7 +36,7 @@ export default function WorkspaceShell({ email, tasks, ready, saving, hasError, 
   return <div className={`workspace-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
     <a href="#workspace-main" className="skip-link">Skip to workspace</a>
     <aside className="workspace-sidebar" aria-label="Workspace navigation">
-      <div className="workspace-brand"><span className="brand-mark"><Zap size={19} strokeWidth={2.3} aria-hidden="true" /></span><span className="sidebar-label">Deadline<span className="brand-light">Desk</span></span></div>
+      <div className="workspace-brand"><span className="brand-mark" aria-hidden="true"><img src="/icon.svg" width="28" height="28" alt="" /></span><span className="sidebar-label">Deadline<span className="brand-light">Desk</span></span></div>
       <button type="button" className="sidebar-add" disabled={!ready || saving} onClick={openCreator} title="Add task"><Plus size={17} aria-hidden="true" /><span className="sidebar-label">Add task</span></button>
       <p className="nav-caption sidebar-label">Workspace</p>
       <nav aria-label="Main navigation" className="workspace-nav">{navigation.map(({ id, label, icon: Icon }) => <button type="button" key={id}

@@ -6,10 +6,11 @@ import ScreenshotInput from "./screenshot-input";
 import TaskReviewForm from "./task-review-form";
 import ManualTaskForm from "./manual-task-form";
 
-export default function TaskCreator({ tasks, disabled, timezone = "America/New_York", onAnalyze, onSaveTask }: {
+export default function TaskCreator({ tasks, disabled, timezone = "America/New_York", onAnalyze, onSaveTask, onBusyChange }: {
   tasks: readonly Task[]; disabled: boolean; timezone?: string;
   onAnalyze: (file: File, signal: AbortSignal) => Promise<Extraction>;
   onSaveTask: (task: Task) => Promise<void>;
+  onBusyChange?: (busy: boolean) => void;
 }) {
   const [mode, setMode] = useState<"screenshot" | "manual">("screenshot");
   const [file, setFile] = useState<File | null>(null);
@@ -26,6 +27,7 @@ export default function TaskCreator({ tasks, disabled, timezone = "America/New_Y
   const id = useId();
   const tabs = useRef<(HTMLButtonElement | null)[]>([]);
   useEffect(() => () => { ++sequence.current; cancellation.current?.abort(); }, []);
+  useEffect(() => { onBusyChange?.(analyzing || saving); }, [analyzing, saving, onBusyChange]);
   function changeFile(next: File | null) {
     ++sequence.current; setFile(next); setExtraction(null); setSelected(null); setError(""); setNotice(""); pending.current = null;
   }

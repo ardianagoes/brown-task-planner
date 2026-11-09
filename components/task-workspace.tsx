@@ -4,21 +4,29 @@ import { CATEGORIES, CATEGORY_STYLE, type Category, type Status, type Task } fro
 import { tasksForView, type TaskTab } from "@/lib/task-workflow";
 import CalendarView from "./calendar-view";
 import TaskRow from "./task-row";
+import type { WorkspaceSection } from "./workspace-shell";
+import { localDay, taskDay } from "@/lib/tasks";
 
-export default function TaskWorkspace({ tasks, now, ready, saving, category, onCategoryChange, onStatusChange, onDeleteTask, onEditTask, onRetry, hasError }: {
+export default function TaskWorkspace({ tasks, now, ready, saving, category, onCategoryChange, onStatusChange, onDeleteTask, onEditTask, onRetry, hasError, section, onSectionChange }: {
   tasks: Task[]; now: number; ready: boolean; saving: boolean; category: Category | "All";
   onCategoryChange: (category: Category | "All") => void;
   onStatusChange: (id: string, status: Status) => void; onRetry: () => void; hasError: boolean;
   onDeleteTask: (id: string) => Promise<void>;
   onEditTask: (task: Task) => Promise<void>;
+  section?: WorkspaceSection; onSectionChange?: (section: WorkspaceSection) => void;
 }) {
-  const [view, setView] = useState<"list" | "calendar">("list");
-  const [tab, setTab] = useState<TaskTab>("active");
+  const [internalSection, setInternalSection] = useState<WorkspaceSection>("upcoming");
+  const destination = section || internalSection;
+  const navigate = onSectionChange || setInternalSection;
+  const view = destination === "calendar" ? "calendar" : "list";
+  const tab: TaskTab = destination === "completed" ? "completed" : "active";
+  const setView = (mode: "list" | "calendar") => navigate(mode === "calendar" ? "calendar" : "upcoming");
+  const setTab = (mode: TaskTab) => navigate(mode === "completed" ? "completed" : "upcoming");
   const [ascending, setAscending] = useState(true);
   const id = useId();
   const tabButtons = useRef<(HTMLButtonElement | null)[]>([]);
   const listPanel = useRef<HTMLDivElement>(null);
-  const visible = useMemo(() => tasksForView(tasks, view, tab, category, ascending), [tasks, view, tab, category, ascending]);
+  const visible = useMemo(() => tasksForView(tasks, view, tab, category, ascending).filter(task => destination !== "today" || taskDay(task) === localDay(new Date(now))), [tasks, view, tab, category, ascending, destination, now]);
   const counts = { active: tasksForView(tasks, "list", "active", category).length,
     completed: tasksForView(tasks, "list", "completed", category).length };
   const tabs: TaskTab[] = ["active", "completed"];

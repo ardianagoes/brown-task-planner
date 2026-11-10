@@ -36,7 +36,7 @@ export default function WorkspaceShell({ email, tasks, ready, saving, hasError, 
   return <div className={`workspace-shell ${collapsed ? "sidebar-collapsed" : ""}`}>
     <a href="#workspace-main" className="skip-link">Skip to workspace</a>
     <aside className="workspace-sidebar" aria-label="Workspace navigation">
-      <div className="workspace-brand"><span className="brand-mark" aria-hidden="true"><img src="/icon.svg" width="28" height="28" alt="" /></span><span className="sidebar-label">Deadline<span className="brand-light">Desk</span></span></div>
+      <div className="workspace-brand"><span className="brand-mark" aria-hidden="true"><img src="/icon.svg" width="28" height="28" alt="" /></span><span className="sidebar-label">Due<span className="brand-light">Drop</span></span></div>
       <button type="button" className="sidebar-add" disabled={!ready || saving} onClick={openCreator} title="Add task"><Plus size={17} aria-hidden="true" /><span className="sidebar-label">Add task</span></button>
       <p className="nav-caption sidebar-label">Workspace</p>
       <nav aria-label="Main navigation" className="workspace-nav">{navigation.map(({ id, label, icon: Icon }) => <button type="button" key={id}
@@ -60,7 +60,7 @@ export default function WorkspaceShell({ email, tasks, ready, saving, hasError, 
         <button type="button" className="button-primary add-task-button" disabled={!ready || saving} onClick={openCreator}><Plus size={16} aria-hidden="true" />Add task</button></div>
     </header>
       <main id="workspace-main" className="workspace-main" tabIndex={-1}>{children(section, setSection, openCreator)}</main>
-      <footer className="workspace-footer"><span>Your deadlines. A little more headspace.</span><button type="button" onClick={() => setModal("settings")}><CircleHelp size={13} aria-hidden="true" />Calendar imports & settings</button></footer>
+      <footer className="workspace-footer"><span>Turn screenshots into deadlines.</span><button type="button" onClick={() => setModal("settings")}><CircleHelp size={13} aria-hidden="true" />Calendar imports & settings</button></footer>
     </div>
     <nav className="mobile-navigation" aria-label="Mobile workspace navigation">{navigation.map(({ id, label, icon: Icon }) => <button type="button" key={id} aria-current={section === id ? "page" : undefined} onClick={() => setSection(id)}><Icon size={19} aria-hidden="true" /><span>{label}</span></button>)}</nav>
     {modal === "create" && <WorkspaceDialog title="Add task" description="Start with a screenshot or enter the details yourself." busy={saving || creatorBusy} onClose={closeModal}>{renderCreator(setCreatorBusy, pastedFiles)}</WorkspaceDialog>}

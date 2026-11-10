@@ -1,30 +1,13 @@
 import sharp from "sharp";
-import { HttpError } from "./http";
+import { HttpError, readBoundedBody } from "./http";
 import { MAX_IMAGE_BYTES, imageFileError } from "./image-limits";
 const MAX_REQUEST_BYTES = MAX_IMAGE_BYTES + 8192;
 
 export async function readImageUpload(request: Request): Promise<File> {
   if (!request.headers.get("content-type")?.toLowerCase().startsWith("multipart/form-data;")) throw new HttpError(415, "Upload one screenshot using multipart/form-data.");
-  const length = request.headers.get("content-length");
-  if (length && (!/^\d+$/.test(length) || Number(length) > MAX_REQUEST_BYTES)) throw new HttpError(413, "Screenshot upload is too large.");
-  const reader = request.body?.getReader();
-  if (!reader) throw new HttpError(400, "Provide a screenshot.");
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  let timedOut = false;
-  const timer = setTimeout(() => { timedOut = true; void reader.cancel().catch(() => {}); }, 10000);
-  try {
-    while (true) {
-      const part = await reader.read();
-      if (timedOut) throw new HttpError(408, "Screenshot upload timed out.");
-      if (part.done) break;
-      size += part.value.byteLength;
-      if (size > MAX_REQUEST_BYTES) { await reader.cancel(); throw new HttpError(413, "Screenshot upload is too large."); }
-      chunks.push(part.value);
-    }
-  } finally { clearTimeout(timer); reader.releaseLock(); }
+  const bytes = await readBoundedBody(request, MAX_REQUEST_BYTES);
   let form: FormData;
-  try { form = await new Response(Buffer.concat(chunks), { headers: { "Content-Type": request.headers.get("content-type")! } }).formData(); }
+  try { form = await new Response(Buffer.from(bytes), { headers: { "Content-Type": request.headers.get("content-type")! } }).formData(); }
   catch { throw new HttpError(400, "Invalid screenshot upload."); }
   const images = form.getAll("image");
   if (images.length !== 1 || !(images[0] instanceof File) || [...form.keys()].some(key => key !== "image")) throw new HttpError(400, "Upload exactly one screenshot.");

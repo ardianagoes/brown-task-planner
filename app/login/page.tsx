@@ -6,7 +6,7 @@ import { LINK_MESSAGES, linkReason } from "@/lib/auth-messages";
 
 export const dynamic = "force-dynamic";
 export default async function LoginPage({ searchParams }: { searchParams: Promise<{ error?: string; mode?: string; notice?: string }> }) {
-  if (!configured()) return <main className="mx-auto max-w-xl p-8"><h1 className="text-3xl font-bold">Connect Deadline desk</h1><p className="mt-4">Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your environment, apply the database migration, and restart the app.</p></main>;
+  if (!configured()) return <main className="mx-auto max-w-xl p-8"><h1 className="text-3xl font-bold">Connect DueDrop</h1><p className="mt-4">Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY in your environment, apply the database migration, and restart the app.</p></main>;
   const supabase = await serverClient();
   const { data: { user } } = await supabase.auth.getUser();
   const params = await searchParams;

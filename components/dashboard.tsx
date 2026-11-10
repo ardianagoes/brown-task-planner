@@ -88,7 +88,7 @@ export default function Dashboard({ user, timezone }: { user: { id: string; emai
 
   async function analyzeScreenshot(file: File, signal: AbortSignal) {
     const body = new FormData(); body.set("image", file);
-    const result = await apiRequest("/api/tasks/extract-image", { method: "POST", body, signal: AbortSignal.any([signal, AbortSignal.timeout(45000)]) });
+    const result = await apiRequest("/api/tasks/extract-image", { method: "POST", headers: { "X-Extraction-Id": crypto.randomUUID() }, body, signal: AbortSignal.any([signal, AbortSignal.timeout(45000)]) });
     const extraction = result.extraction;
     if (!extraction || !validCalendarDate(extraction.referenceDate) || !validTimezone(extraction.referenceTimezone)) throw new Error("Could not validate the detected task details.");
     return parseExtraction({ candidates: extraction.candidates, notes: extraction.notes }, extraction.referenceDate, extraction.referenceTimezone);

@@ -35,9 +35,11 @@ Missing facts remain null. uncertainFields identifies every field requiring conf
 notes are concise (at most 8 notes of 300 characters each). Only return the structured JSON.`;
 
 export async function extractWithOpenAI(image: Buffer, apiKey: string, context: { referenceDate: string; timezone: string },
-  model = DEFAULT_IMAGE_MODEL, fetchImpl: typeof fetch = fetch): Promise<Extraction> {
-  const signal = AbortSignal.timeout(20000);
+  model = DEFAULT_IMAGE_MODEL, fetchImpl: typeof fetch = fetch, requestSignal?: AbortSignal): Promise<Extraction> {
+  const timeout = AbortSignal.timeout(20000);
+  const signal = requestSignal ? AbortSignal.any([timeout, requestSignal]) : timeout;
   try {
+    signal.throwIfAborted();
     const response = await fetchImpl("https://api.openai.com/v1/responses", {
       method: "POST", redirect: "error", signal,
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
@@ -74,6 +76,7 @@ export async function extractWithOpenAI(image: Buffer, apiKey: string, context: 
     return parseExtraction(JSON.parse(texts[0].text), context.referenceDate, context.timezone);
   } catch (error) {
     if (error instanceof HttpError) throw error;
+    if (requestSignal?.aborted) throw new HttpError(408, "Screenshot analysis was cancelled. Use Manual Entry or explicitly start another analysis.");
     if (signal.aborted) throw new HttpError(504, "Screenshot analysis timed out. Try a smaller crop or use Manual Entry.");
     throw new HttpError(502, "The AI returned unusable task details. Try a focused screenshot or use Manual Entry.");
   }

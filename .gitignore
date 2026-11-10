@@ -5,3 +5,9 @@ node_modules/
 *.tsbuildinfo
 # Legacy generated OCR assets (no longer used).
 public/ocr/
+.vercel/
+coverage/
+playwright-report/
+test-results/
+*.log
+.DS_Store

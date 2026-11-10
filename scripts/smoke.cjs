@@ -4,6 +4,21 @@ const origin = new URL(process.env.SMOKE_APP_URL || 'http://127.0.0.1:3000').ori
   const page = await fetch(origin, { redirect: 'manual' });
   assert.equal(page.status, 307);
   assert.equal(new URL(page.headers.get('location'), origin).pathname, '/login');
+  const login = await fetch(origin + '/login');
+  assert.equal(login.status, 200);
+  assert.equal(login.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(login.headers.get('x-frame-options'), 'DENY');
+  assert.match(login.headers.get('content-security-policy'), /frame-ancestors 'none'/);
+  assert.equal(login.headers.get('referrer-policy'), 'no-referrer');
+  assert.equal(login.headers.get('x-powered-by'), null);
+  assert.match(login.headers.get('cache-control'), /no-store/);
+  const loginHtml = await login.text();
+  assert.match(loginHtml, /<title>DueDrop<\/title>/);
+  assert.match(loginHtml, /Turn screenshots into deadlines\./);
+  assert.doesNotMatch(loginHtml, /Deadline Desk/);
+  const icon = await fetch(origin + '/icon.svg');
+  assert.equal(icon.status, 200);
+  assert.match(await icon.text(), /<title[^>]*>DueDrop<\/title>/);
   const task = await fetch(origin + '/api/tasks');
   assert.equal(task.status, 401);
   assert.match(task.headers.get('cache-control'), /no-store/);
@@ -51,5 +66,5 @@ const origin = new URL(process.env.SMOKE_APP_URL || 'http://127.0.0.1:3000').ori
   assert.match(html, /action="\/auth\/confirm"/); assert.doesNotMatch(html, /token_hash=|a{64}/);
   const callback = await fetch(origin + '/auth/callback?next=https://evil.example', { redirect: 'manual' });
   assert.equal(new URL(callback.headers.get('location'), origin).pathname, '/login');
-  console.log('Passed live app smoke checks: page protection, every API auth guard, origin rejection, no-store, callback redirect safety.');
+  console.log('Passed live app smoke checks: DueDrop branding, security headers, page protection, every API auth guard, origin rejection, no-store, callback redirect safety.');
 })().catch(error => { console.error(error.message); process.exitCode = 1; });

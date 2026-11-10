@@ -1,8 +1,17 @@
 # Email authentication: production setup and verification
 
-Production origin: `https://brown-task-planner.vercel.app`.
+Production origin: `https://due-drop.vercel.app`.
 Apply these hosted settings manually; repository changes cannot edit your Supabase
 email templates, Site URL or Vercel environment. No SQL migration is required.
+
+**Canonical URL review (November 9, 2026):** the former
+`https://brown-task-planner.vercel.app` redirects to the confirmed working DueDrop
+origin. However, credential-free callbacks on DueDrop currently redirect back to
+the former host, indicating stale canonical-origin configuration. This can conflict
+with strict mutation Origin checks. Review/approve the Production and Preview
+`NEXT_PUBLIC_APP_URL`, Supabase Site URL and redirect entries below, then redeploy.
+No hosted authentication setting was changed by this rebrand. Keep the old domain
+redirect while older email links exist, and request fresh links after configuration.
 
 ## Why the old links failed
 
@@ -29,7 +38,7 @@ that actively submits forms could still do so. Request a fresh link if one is us
 In the existing project's **Settings → Environment Variables**, set Production:
 
 ```dotenv
-NEXT_PUBLIC_APP_URL=https://brown-task-planner.vercel.app
+NEXT_PUBLIC_APP_URL=https://due-drop.vercel.app
 AUTH_RECOVERY_SECRET=<a newly generated random secret>
 ```
 
@@ -61,16 +70,16 @@ Go to **Authentication → URL Configuration**.
 Set **Site URL** exactly to:
 
 ```text
-https://brown-task-planner.vercel.app
+https://due-drop.vercel.app
 ```
 
 Add these exact **Redirect URLs** (no production wildcard):
 
 ```text
-https://brown-task-planner.vercel.app/auth/confirm
-https://brown-task-planner.vercel.app/auth/callback
-https://brown-task-planner.vercel.app/auth/callback?next=/auth/reset
-https://brown-task-planner.vercel.app/auth/reset
+https://due-drop.vercel.app/auth/confirm
+https://due-drop.vercel.app/auth/callback
+https://due-drop.vercel.app/auth/callback?next=/auth/reset
+https://due-drop.vercel.app/auth/reset
 ```
 
 The callback entries retain compatibility with current signup/reset/magic API
@@ -106,7 +115,7 @@ inside the HTML `href`; the browser interprets it as the query separator `&`.
 **Magic Link**:
 
 ```html
-<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email">Sign in to Deadline Desk</a>
+<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email">Sign in to DueDrop</a>
 ```
 
 **Confirm Signup**:
@@ -135,7 +144,7 @@ need the original browser's verifier; their URLs cannot be retroactively repaire
 
 ## 4. Vercel Deployment Protection
 
-Read-only anonymous checks on October 29, 2026 reached production `/login` (200),
+Read-only anonymous checks on November 9, 2026 reached production `/login` (200),
 `/auth/confirm` and `/auth/callback` (application redirects when missing credentials).
 No Vercel authentication wall was observed on those canonical routes. Project
 protection settings were not available for inspection and were not changed.

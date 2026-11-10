@@ -26,6 +26,7 @@ function upload(file: File, extra?: File): Request {
   const body = new FormData(); body.append("image", file); if (extra) body.append("image", extra);
   return new Request(origin + "/api/tasks/extract-image", { method: "POST", headers: { Origin: origin }, body });
 }
+const reserve = async () => ({ allowed: true, reason: "allowed" as const, retryAfter: 60 });
 const status = (expected: number) => (error: unknown) => error instanceof HttpError && error.status === expected;
 const provider = (value: unknown, patch: Record<string, unknown> = {}) => new Response(JSON.stringify({
   status: "completed", output: [{ type: "message", content: [{ type: "output_text", text: JSON.stringify(value) }] }], ...patch,
@@ -161,25 +162,25 @@ test("authentication and same-origin checks precede reading images and AI; missi
   await assert.rejects(processImageExtraction(request, denied), status(401));
   assert.equal(reads, 0); assert.equal(paidCalls, 0);
   await assert.rejects(processImageExtraction(new Request(origin, { method: "POST", headers: { Origin: "https://foreign.example" } }), denied), status(403));
-  await assert.rejects(processImageExtraction(upload(await png()), { authorize: async () => ({ consumeSlot: async () => ({ allowed: true, retryAfter: 600 }) }) }), status(503));
+  await assert.rejects(processImageExtraction(upload(await png()), { authorize: async () => ({ reserve, consumeSlot: async () => ({ allowed: true, retryAfter: 600 }) }) }), status(503));
 });
 
 test("authenticated extraction consumes durable slot before AI; no task is saved by analysis", async () => {
   let consumed = 0, called = 0;
   const dependencies = {
-    apiKey: "mock-only-key", now: new Date("2026-10-08T02:00:00Z"),
-    authorize: async () => ({ consumeSlot: async () => { ++consumed; return { allowed: true, retryAfter: 600 }; } }),
+    enabled: true, apiKey: "mock-only-key", now: new Date("2026-10-08T02:00:00Z"),
+    authorize: async () => ({ reserve, consumeSlot: async () => { ++consumed; return { allowed: true, retryAfter: 600 }; } }),
     extract: async (_image: Buffer, _key: string, actualContext: typeof context) => {
       ++called; assert.equal(consumed, 1); assert.deepEqual(actualContext, context); return parsed();
     },
   };
   const response = await processImageExtraction(upload(await png()), dependencies);
   assert.equal(response.extraction.candidates.length, 1); assert.equal(called, 1);
-  await assert.rejects(processImageExtraction(upload(await png()), { ...dependencies, authorize: async () => ({
+  await assert.rejects(processImageExtraction(upload(await png()), { ...dependencies, authorize: async () => ({ reserve,
     consumeSlot: async () => ({ allowed: false, retryAfter: 51 }),
   }) }), (error: unknown) => error instanceof ExtractionLimitError && error.retryAfter === 51);
   assert.equal(called, 1);
-  await assert.rejects(processImageExtraction(upload(await png()), { ...dependencies, authorize: async () => ({
+  await assert.rejects(processImageExtraction(upload(await png()), { ...dependencies, authorize: async () => ({ reserve,
     consumeSlot: async () => { throw new HttpError(503, "Limiter unavailable"); },
   }) }), status(503));
   assert.equal(called, 1);

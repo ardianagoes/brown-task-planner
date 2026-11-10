@@ -76,7 +76,7 @@ export default function TaskCreator({ tasks, disabled, timezone = "America/New_Y
     <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-${mode}`}>
       {mode === "manual" ? <ManualTaskForm tasks={tasks} disabled={unavailable} onSave={save} /> : <>
         <ScreenshotInput file={file} enabled={!unavailable} onFileChange={changeFile} error={error} onError={setError} />
-        <p className="my-3 text-xs leading-relaxed text-slate-400">Analyze Screenshot sends this image to OpenAI, an external AI service. Deadline Desk does not store screenshots. Provider retention policies apply. Only confirmed task details are saved.</p>
+        <p className="my-3 text-xs leading-relaxed text-slate-400">When enabled for your account, Analyze Screenshot sends this image to OpenAI, an external AI service. DueDrop does not store screenshots. Provider retention policies apply. Only confirmed task details are saved.</p>
         {!extraction && <button type="button" disabled={!file || unavailable} className="button-primary w-full" onClick={() => void analyze()}>
           {analyzing ? "Analyzing screenshot…" : "Analyze Screenshot"}</button>}
         {analyzing && <div role="status" className="mt-2 text-xs text-blue-200">

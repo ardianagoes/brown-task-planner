@@ -1,3 +1,9 @@
+# Historical verification records
+
+The records below retain the former product/repository names and their original
+dates. For the current DueDrop audit and setup status, see [docs/SECURITY.md](docs/SECURITY.md)
+and [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md).
+
 # Verification — email authentication
 
 Checked October 29, 2026 in the existing brown-task-planner repository.

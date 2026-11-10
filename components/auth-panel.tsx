@@ -44,7 +44,7 @@ export default function AuthPanel({ linkError, initialMode = "login", initialNot
     } finally { active.current = false; setBusy(false); }
   }
   return <main className="mx-auto max-w-md px-4 py-16">
-    <p className="mb-3 text-sm font-bold uppercase tracking-widest text-blue-300">Deadline desk</p>
+    <p className="mb-3 text-sm font-bold tracking-widest text-blue-300">DueDrop</p>
     <section className="panel p-6">
       <h1 className="text-2xl font-bold">{mode === "signup" ? "Create your account" : mode === "forgot" ? "Reset your password" : mode === "magic" ? "Email sign-in" : "Sign in"}</h1>
       <p className="mt-3 text-slate-400">Your deadlines are private and saved to your account.</p>

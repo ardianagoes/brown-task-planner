@@ -8,8 +8,9 @@ import ManualTaskForm from "./manual-task-form";
 import { ImagePlus, TextCursorInput } from "lucide-react";
 import { imageFileError } from "@/lib/image-limits";
 
-export default function TaskCreator({ tasks, disabled, timezone = "America/New_York", onAnalyze, onSaveTask, onBusyChange, initialFiles }: {
+export default function TaskCreator({ tasks, disabled, analysisEnabled = false, timezone = "America/New_York", onAnalyze, onSaveTask, onBusyChange, initialFiles }: {
   tasks: readonly Task[]; disabled: boolean; timezone?: string;
+  analysisEnabled?: boolean;
   onAnalyze: (file: File, signal: AbortSignal) => Promise<Extraction>;
   onSaveTask: (task: Task) => Promise<void>;
   onBusyChange?: (busy: boolean) => void;
@@ -35,7 +36,7 @@ export default function TaskCreator({ tasks, disabled, timezone = "America/New_Y
     ++sequence.current; setFile(next); setExtraction(null); setSelected(null); setError(""); setNotice(""); pending.current = null;
   }
   async function analyze() {
-    if (!file || disabled || active.current) return;
+    if (!analysisEnabled || !file || disabled || active.current) return;
     active.current = true; setAnalyzing(true); setError(""); setNotice("");
     const controller = new AbortController(); cancellation.current = controller;
     const current = ++sequence.current;
@@ -75,10 +76,15 @@ export default function TaskCreator({ tasks, disabled, timezone = "America/New_Y
     </div>
     <div id={`${id}-panel`} role="tabpanel" aria-labelledby={`${id}-${mode}`}>
       {mode === "manual" ? <ManualTaskForm tasks={tasks} disabled={unavailable} onSave={save} /> : <>
+        {!analysisEnabled && <div id={`${id}-analysis-disabled`} className="mb-3 rounded-lg border border-slate-700 bg-slate-800/50 p-3 text-sm text-slate-300">
+          <p className="font-medium text-slate-200">Paid screenshot analysis is disabled</p>
+          <p className="mt-1 text-xs leading-relaxed">Your screenshot stays in this browser. No analysis request is sent. You can still add a task with Manual Entry.</p>
+          <button type="button" className="button-secondary mt-3" disabled={unavailable} onClick={() => { setMode("manual"); tabs.current[1]?.focus(); }}>Use Manual Entry</button>
+        </div>}
         <ScreenshotInput file={file} enabled={!unavailable} onFileChange={changeFile} error={error} onError={setError} />
-        <p className="my-3 text-xs leading-relaxed text-slate-400">When enabled for your account, Analyze Screenshot sends this image to OpenAI, an external AI service. DueDrop does not store screenshots. Provider retention policies apply. Only confirmed task details are saved.</p>
-        {!extraction && <button type="button" disabled={!file || unavailable} className="button-primary w-full" onClick={() => void analyze()}>
-          {analyzing ? "Analyzing screenshot…" : "Analyze Screenshot"}</button>}
+        {analysisEnabled && <p className="my-3 text-xs leading-relaxed text-slate-400">Analyze Screenshot sends this image to OpenAI, an external paid AI service. Account approval and usage limits apply. DueDrop does not store screenshots. Provider retention policies apply. Only confirmed task details are saved.</p>}
+        {!extraction && <button type="button" disabled={!analysisEnabled || !file || unavailable} aria-describedby={!analysisEnabled ? `${id}-analysis-disabled` : undefined} className="button-primary mt-3 w-full" onClick={() => void analyze()}>
+          {!analysisEnabled ? "Screenshot analysis disabled" : analyzing ? "Analyzing screenshot…" : "Analyze Screenshot"}</button>}
         {analyzing && <div role="status" className="mt-2 text-xs text-blue-200">
           <p>Reading task names and deadlines with GPT…</p><progress aria-label="Screenshot analysis progress" className="mt-2 h-2 w-full accent-blue-500" />
           <button type="button" className="button-secondary mt-2" onClick={() => cancellation.current?.abort()}>Cancel analysis</button>

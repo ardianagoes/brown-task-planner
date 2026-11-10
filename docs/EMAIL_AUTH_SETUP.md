@@ -4,7 +4,7 @@ Production origin: `https://due-drop.vercel.app`.
 Apply these hosted settings manually; repository changes cannot edit your Supabase
 email templates, Site URL or Vercel environment. No SQL migration is required.
 
-**Canonical URL review (November 9, 2026):** the former
+**Canonical URL review (November 10, 2026):** the former
 `https://brown-task-planner.vercel.app` redirects to the confirmed working DueDrop
 origin. However, credential-free callbacks on DueDrop currently redirect back to
 the former host, indicating stale canonical-origin configuration. This can conflict
@@ -39,22 +39,27 @@ In the existing project's **Settings → Environment Variables**, set Production
 
 ```dotenv
 NEXT_PUBLIC_APP_URL=https://due-drop.vercel.app
-AUTH_RECOVERY_SECRET=<a newly generated random secret>
+SCREENSHOT_AI_ENABLED=false
 ```
 
-Generate a 64-character hex secret locally, then paste it only into private server
-environment settings (and your ignored `.env.local` for local testing):
+Do not add a trailing slash, path or quotation marks to the app URL in the dashboard.
+Keep `APP_TIMEZONE=America/New_York`. Keep the existing Supabase project URL,
+publishable key, `AUTH_RECOVERY_SECRET`, OpenAI key and model unchanged. **Do not
+generate, replace or rotate production secrets for this domain correction.** A
+missing recovery secret is a separate setup issue; do not silently create one as
+part of this checklist. No service-role key is used.
 
-```sh
-node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
-```
+In **Settings → Domains**, confirm `due-drop.vercel.app` belongs to this existing
+project's Production deployment. Preserve the former-domain redirect while older
+email links exist. Do not rename/recreate the Vercel project or Supabase project.
 
-Do not put the generated value in source control, a `NEXT_PUBLIC_` variable or
-logs. Use one stable value for all production instances/deployments. Rotating it
-invalidates outstanding recovery grants, so users need fresh recovery links.
-Existing Supabase URL/publishable-key settings stay in place. No service-role key
-is used. Redeploy this branch after setting variables; public variables are built
-into browser code. Use separate preview environment settings for preview origins.
+Changes above are operator instructions, not settings applied by this PR. After
+approval and merge, redeploy Production for the public app URL to enter browser
+assets. Do not enable paid AI: retain `SCREENSHOT_AI_ENABLED=false` (missing also
+defaults off). Use separate Preview settings with the exact approved HTTPS preview
+origin; do not copy a production origin into an interactive preview or add broad
+wildcards to work around strict Origin checks. Local `.env.local` stays
+`NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000` with paid AI disabled.
 
 Recovery verification issues a signed 30-minute HttpOnly grant bound to the verified
 user and JWT session ID. This is necessary because successful hash verification

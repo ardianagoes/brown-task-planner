@@ -14,6 +14,12 @@ limits below are approved. This PR makes the safe default explicit:
 Public signup does not grant paid-feature access. Normal task storage/imports keep
 their existing authentication and RLS protections.
 
+The screenshot UI receives only the server's enabled/disabled boolean. When off,
+it clearly labels paid analysis as disabled and disables Analyze before an attempt.
+Local paste/upload previews and a focused Manual Entry shortcut remain available;
+manual tasks are saved only on explicit confirmation. This display is not the
+security boundary: the API independently enforces the flag and admission checks.
+
 The dependency patch and code safeguards take effect only after the owner merges
 and deploys this PR. The currently deployed app was not patched by local work.
 Correct canonical-origin drift and verify hosted RLS before considering the public
@@ -180,7 +186,7 @@ is implied by a green local run.
 Final local validation on November 10:
 
 - `npm run typecheck`: passed.
-- `npm test`: 116 passed, zero failed (19 new focused guard/database/feed tests).
+- `npm test`: 118 passed, zero failed (21 new focused guard/database/feed/UI tests).
 - `npm run build`: passed with Next.js 16.4.1.
 - `npm run check:branding`: passed across 63 current files; README 240 words
   excluding commands.

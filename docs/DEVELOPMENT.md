@@ -61,6 +61,12 @@ task management and ICS imports still work. The existing screenshot interface,
 local preview, explicit Analyze click and editable confirmation remain available;
 a paused/failed analysis can still be corrected manually.
 
+The server passes only the enabled/disabled boolean to the dashboard, never the
+key or secret. When off, the screenshot tab shows a disabled-analysis notice and
+disabled action before any attempt; paste/upload remains a local preview. Its
+Use Manual Entry shortcut focuses the manual tab, where normal validation and
+explicit saving remain available. The API independently enforces the same flag.
+
 Before enabling paid work, approve the provider controls and SQL proposal described
 in [SECURITY.md](SECURITY.md). The proposal is deliberately outside
 `supabase/migrations/` and is not run by any app/build script. With no proposal,

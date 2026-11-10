@@ -8,7 +8,7 @@ export default async function ContinueEmail() {
   const recovery = ticket.type === "recovery";
   return <main className="mx-auto max-w-md px-4 py-16"><section className="panel p-6">
     <h1 className="text-2xl font-bold">{recovery ? "Continue password reset" : "Confirm email sign-in"}</h1>
-    <p className="my-4 text-slate-300">{recovery ? "Continue to verify this email link and choose a new password." : "Continue to verify this email link and sign in to Deadline Desk."}</p>
+    <p className="my-4 text-slate-300">{recovery ? "Continue to verify this email link and choose a new password." : "Continue to verify this email link and sign in to DueDrop."}</p>
     <p className="mb-5 text-sm text-slate-400">Only continue if you requested this email. This step helps prevent email scanners from using your single-use link.</p>
     <form method="post" action="/auth/confirm"><input type="hidden" name="nonce" value={ticket.nonce} />
       <button className="button-primary w-full">{recovery ? "Continue to reset password" : "Continue to sign in"}</button></form>

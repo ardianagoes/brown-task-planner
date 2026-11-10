@@ -1,5 +1,8 @@
 # Productivity workspace UI refactor
 
+Historical UI implementation record. Current branding is DueDrop; the later
+[security audit](SECURITY.md) records the dependency patch and current safety gates.
+
 Branch: `codex/productivity-ui-redesign`, based on main `6a30ede`.
 This refactor changes frontend presentation and interaction only. Task types, API
 contracts, server routes, authentication, SQL and timezone conversion stay intact.

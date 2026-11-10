@@ -12,7 +12,7 @@ export function allowedFeedUrl(input: string, extraHosts = process.env.ICS_ALLOW
   const providers = ["instructure.com", "gradescope.com"];
   const extra = extraHosts.split(",").map(value => value.trim().toLowerCase()).filter(Boolean);
   if (url.protocol !== "https:" || url.username || url.password || url.hash ||
-      (url.port && url.port !== "443") || isIP(host) ||
+      (url.port && url.port !== "443") || isIP(host.replace(/^\[|\]$/g, "")) ||
       !(providers.some(domain => host === domain || host.endsWith(`.${domain}`)) || extra.includes(host))) {
     throw new Error("Use an HTTPS Canvas or Gradescope feed. Add your school’s exact feed hostname to ICS_ALLOWED_HOSTS if needed.");
   }
@@ -23,24 +23,36 @@ export function publicAddress(address: string): boolean {
   catch { return false; }
 }
 
-export async function fetchFeed(url: URL): Promise<string> {
+export async function fetchFeed(url: URL, dependencies: {
+  resolve?: (hostname: string) => Promise<{ address: string; family: number }[]>;
+  connect?: typeof request; timeoutMs?: number;
+} = {}): Promise<string> {
+  url = allowedFeedUrl(url.href);
+  const timeoutMs = dependencies.timeoutMs ?? 12000, started = Date.now();
+  let dnsTimer: ReturnType<typeof setTimeout> | undefined;
   // Validate DNS then pin the resolved IP for this request to avoid DNS rebinding.
-  const addresses = await lookup(url.hostname, { all: true });
+  const addresses = await Promise.race([
+    (dependencies.resolve || (host => lookup(host, { all: true })))(url.hostname),
+    new Promise<never>((_resolve, reject) => { dnsTimer = setTimeout(() => reject(new Error("Feed download timed out.")), timeoutMs); }),
+  ]).finally(() => clearTimeout(dnsTimer));
   if (!addresses.length || addresses.some(item => !publicAddress(item.address))) {
     throw new Error("The feed hostname must resolve to a public internet address.");
   }
   const target = addresses[0];
+  const remaining = timeoutMs - (Date.now() - started);
+  if (remaining <= 0) throw new Error("Feed download timed out.");
   return new Promise((resolve, reject) => {
-    const req = request(url, {
+    const req = (dependencies.connect || request)(url, {
       method: "GET", agent: false, family: target.family,
       headers: {
         Accept: "text/calendar",
         "Accept-Encoding": "identity",
-        "User-Agent": "DeadlineDesk/1.0",
+        "User-Agent": "DueDrop/1.0",
       },
       // HTTPS still verifies the certificate against url.hostname.
       lookup: (_host, _options, callback) => callback(null, target.address, target.family),
     }, response => {
+      response.on("error", reject);
       if (response.statusCode !== 200) {
         if (process.env.NODE_ENV === "development") {
           // Log only the status: feed URLs, redirects and response bodies may contain private tokens.
@@ -49,20 +61,21 @@ export async function fetchFeed(url: URL): Promise<string> {
           });
         }
         response.resume();
-        req.destroy(new Error("The feed did not return a calendar. Use the direct feed URL, not a login page or redirect."));
+        const error = new Error("The feed did not return a calendar. Use the direct feed URL, not a login page or redirect.");
+        reject(error); req.destroy(error);
         return;
       }
+      if (Number(response.headers["content-length"]) > MAX_BYTES) { const error = new Error("Calendar feeds must be smaller than 2 MB."); reject(error); req.destroy(error); return; }
       let bytes = 0;
       const chunks: Buffer[] = [];
       response.on("data", (chunk: Buffer) => {
         bytes += chunk.length;
-        if (bytes > MAX_BYTES) { req.destroy(new Error("Calendar feeds must be smaller than 2 MB.")); return; }
+        if (bytes > MAX_BYTES) { const error = new Error("Calendar feeds must be smaller than 2 MB."); reject(error); req.destroy(error); return; }
         chunks.push(chunk);
       });
       response.on("end", () => resolve(Buffer.concat(chunks).toString("utf8")));
-      response.on("error", reject);
     });
-    const timer = setTimeout(() => req.destroy(new Error("Feed download timed out.")), 12000);
+    const timer = setTimeout(() => req.destroy(new Error("Feed download timed out.")), remaining);
     req.on("close", () => clearTimeout(timer));
     req.on("error", reject);
     req.end();

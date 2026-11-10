@@ -9,5 +9,6 @@ export default async function Page() {
   const supabase = await serverClient();
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) redirect("/login");
-  return <Dashboard key={user.id} user={{ id: user.id, email: user.email || "Your account" }} timezone={process.env.APP_TIMEZONE || "America/New_York"} />;
+  return <Dashboard key={user.id} user={{ id: user.id, email: user.email || "Your account" }} timezone={process.env.APP_TIMEZONE || "America/New_York"}
+    screenshotAnalysisEnabled={process.env.SCREENSHOT_AI_ENABLED === "true"} />;
 }

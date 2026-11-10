@@ -1,136 +1,36 @@
-# Deadline Desk
+# DueDrop
 
-**Your homework, applications, and everything due next, in one place.**
+Turn screenshots into deadlines.
 
-[**Live app**](https://brown-task-planner.vercel.app) · [**GitHub repository**](https://github.com/ardianagoes/brown-task-planner)
+DueDrop is a student deadline manager that combines reviewed screenshot extraction, calendar feeds, and personal task tracking in one workspace.
 
-Deadline Desk is a full-stack task planner built to make managing college deadlines less fragmented. It brings assignments from calendar feeds, manually entered tasks, and screenshot-based deadline extraction into a single workspace with a calendar and prioritized task list.
+[Live website](https://due-drop.vercel.app)
 
 ## Features
 
-- **Unified deadline dashboard:** Track active, upcoming, overdue, and completed tasks in one place.
-- **Today and Upcoming:** Scan deadlines grouped into Today, Tomorrow, Later This Week, Overdue and Later, with a single status selector per task.
-- **Calendar and list views:** Browse a full desktop month calendar or a mobile agenda, filter by category, and sort by due date.
-- **Canvas and Gradescope imports:** Import assignments from compatible private ICS calendar feeds and refresh existing tasks without resetting their completion status.
-- **AI screenshot extraction:** Paste, drag, or upload a screenshot of an assignment or schedule to extract potential tasks with OpenAI. Review and edit detected details before saving.
-- **Manual task management:** Create, edit, complete, and delete tasks, including all-day deadlines, exact times, categories, and useful links.
-- **Private accounts:** Sign up, sign in, and manage tasks across devices with Supabase authentication and PostgreSQL storage.
-- **Responsive interface:** A refined dark workspace with self-hosted Geist typography, Lucide icons, collapsible desktop navigation and mobile navigation.
+- **Screenshot-based deadline extraction.** Paste, drop, or upload an assignment screenshot, then review and correct the detected title, date, time, and category before saving. Analysis never creates tasks automatically.
+- **Canvas and Gradescope imports.** Import compatible private ICS calendar feeds and refresh deadlines while preserving task status and category. A course homepage is not a calendar feed.
+- **Tasks and calendars.** Create, edit, complete, and delete tasks; organize them by category and due date; and switch between an agenda and calendar. Completed tasks remain available as a record of your work.
 
-Screenshot extraction is optional and requires a server-side OpenAI API key. Manual entry, calendar imports, and task management do not require an OpenAI key.
+## Stack
 
-## Tech stack
+Next.js 16, React 19, TypeScript, and Tailwind CSS power the interface. Supabase provides authentication and PostgreSQL task storage with Row Level Security. Optional screenshot analysis uses the OpenAI Responses API. The interface uses locally hosted Geist typography and Lucide icons.
 
-| Layer | Technologies |
-| --- | --- |
-| Frontend | Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, Lucide, self-hosted Geist |
-| Backend | Next.js API route handlers |
-| Authentication and database | Supabase Auth, PostgreSQL, Row Level Security |
-| AI | OpenAI Responses API for image-based task extraction |
-| Calendar processing | ICS parsing with `node-ical` |
-| Deployment | Vercel |
-| Testing | Node.js test runner, TypeScript checks, and smoke tests |
+## Local development
 
-## Getting started
+Use Node.js 22 or newer. Create a local environment file and install dependencies:
 
-### Prerequisites
-
-- Node.js 22+ and npm
-- A Supabase project
-
-### 1. Install dependencies
-
-```bash
-git clone https://github.com/ardianagoes/brown-task-planner.git
-cd brown-task-planner
+```sh
+git clone https://github.com/ardianagoes/due-drop.git
+cd due-drop
 npm ci
+cp .env.example .env.local
 ```
 
-### 2. Configure environment variables
+Fill in your Supabase settings and local app URL. Follow [development setup](docs/DEVELOPMENT.md) for the existing database migration and email configuration, then start the app:
 
-Copy `.env.example` to `.env.local` and fill in your Supabase project settings:
-
-```dotenv
-NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=YOUR_PUBLISHABLE_KEY
-NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000
-AUTH_RECOVERY_SECRET=YOUR_RANDOM_SERVER_ONLY_SECRET
-APP_TIMEZONE=America/New_York
-
-# Optional: enable screenshot analysis
-OPENAI_API_KEY=
-OPENAI_IMAGE_MODEL=gpt-5.4-mini
-```
-
-Generate a recovery secret with:
-
-```bash
-node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
-```
-
-Keep real keys and secrets in `.env.local` or your hosting provider's environment settings, never in Git.
-
-### 3. Set up the database and authentication
-
-Apply [the production database migration](supabase/migrations/20261006000000_production_tasks.sql) to your Supabase project. It creates task storage, user-scoped policies, import functions, and rate limiting.
-
-Configure Supabase authentication and redirect URLs using the [email authentication setup guide](docs/EMAIL_AUTH_SETUP.md). Email confirmation, magic links, and password recovery also depend on settings in the hosted Supabase project.
-
-### 4. Run locally
-
-```bash
+```sh
 npm run dev
 ```
 
-Open **http://127.0.0.1:3000**.
-
-## How it works
-
-1. **Add tasks** using the Add task modal. Paste Screenshot is the default tab; Manual Entry is always available. Connect Canvas/Gradescope ICS feeds under Settings & imports.
-2. **Review deadlines** before saving AI-extracted tasks. Uncertain details are flagged for confirmation.
-3. **Stay organized** using deadline summaries, category filters, a calendar, and active/completed task views.
-4. **Sync across devices** through your authenticated Supabase account.
-
-Calendar imports require an actual ICS feed URL, not a course homepage or Gradescope assignment page.
-
-Completed tasks remain in Completed and in both calendar layouts. Status selectors
-keep To Do, In Progress and Submitted/Done as the stored states. Editing and deletion
-remain available in each layout. Upcoming includes past and distant deadlines so
-grouping never silently hides a task. All-day dates remain literal calendar dates;
-timed deadlines and day grouping use the browser timezone.
-
-The [UI refactor record](docs/UI_REDESIGN.md) documents phase checks, responsive and
-keyboard review, preserved contracts and the existing framework audit finding.
-
-The Deadline Desk mark is a violet D/check monogram. Its vector source is
-`app/icon.svg`, also used in the workspace sidebar. After editing it, run
-`node scripts/generate-icons.cjs` to regenerate the 16/32/48px favicon,
-180px Apple home-screen icon and 256px PNG brand asset. Next.js automatically
-includes the favicon/SVG/Apple icon metadata; no external icon service is used.
-
-## Security and privacy
-
-- Task reads and writes require an authenticated user; PostgreSQL Row Level Security policies restrict access by user ID.
-- Calendar-feed requests are restricted to approved HTTPS hosts, with DNS and response-size checks.
-- Screenshot uploads are validated and rate-limited. Images are processed for extraction rather than saved as tasks or stored by Deadline Desk.
-- AI analysis sends screenshots to OpenAI, so external provider data-handling policies apply. Users must explicitly confirm extracted tasks before saving.
-- OpenAI credentials and password-recovery signing secrets are configured server-side.
-
-## Development and verification
-
-```bash
-npm run typecheck   # Check TypeScript
-npm test            # Run automated tests
-npm run build       # Build for production
-npm run test:smoke  # Check key application routes with a running dev server
-```
-
-See [VERIFICATION.md](VERIFICATION.md) for recorded test results and remaining live-deployment checks. Automated tests do not, by themselves, verify hosted email delivery or production authentication configuration.
-
-## Deployment
-
-The app is configured for deployment on Vercel. Set the same environment variables in the deployment settings, use the canonical HTTPS production URL for `NEXT_PUBLIC_APP_URL`, and complete the Supabase email/redirect configuration in the [setup guide](docs/EMAIL_AUTH_SETUP.md).
-
----
-
-Built as an independent project by [Ardian Agoes](https://github.com/ardianagoes).
+Open `http://127.0.0.1:3000`. Paid analysis is disabled by default until its safeguards are approved and configured; manual tasks and calendar imports work without an OpenAI key. See the [security review](docs/SECURITY.md) before enabling it. Keep credentials out of Git.

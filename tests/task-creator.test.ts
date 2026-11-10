@@ -34,11 +34,11 @@ function extraction(candidates = [candidate()]): Extraction {
   return parseExtraction({ candidates, notes: [] }, "2026-10-07", "America/New_York");
 }
 const file = (type = "image/png", size = 10) => new File([new Uint8Array(size)], "screen.png", { type });
-async function mount(options: { tasks?: Task[]; initialFiles?: File[]; onAnalyze?: (file: File) => Promise<Extraction>; onSave?: (task: Task) => Promise<void> } = {}) {
+async function mount(options: { tasks?: Task[]; initialFiles?: File[]; analysisEnabled?: boolean; onAnalyze?: (file: File) => Promise<Extraction>; onSave?: (task: Task) => Promise<void> } = {}) {
   container = document.createElement("div"); document.body.append(container); root = createRoot(container);
   const saved: Task[] = [], analyzed: File[] = [];
   await act(async () => root.render(createElement(TaskCreator, {
-    tasks: options.tasks || [], disabled: false, initialFiles: options.initialFiles,
+    tasks: options.tasks || [], disabled: false, initialFiles: options.initialFiles, analysisEnabled: options.analysisEnabled ?? true,
     onAnalyze: options.onAnalyze || (async image => { analyzed.push(image); return extraction(); }),
     onSaveTask: options.onSave || (async task => { saved.push(task); }),
   })));
@@ -69,6 +69,41 @@ async function paste(target: Element = document.body, images: File[] = [file()])
   return event;
 }
 async function analyze() { await click(button("Analyze Screenshot")); }
+
+test("without an enabled flag, screenshot analysis defaults off and cannot send a request", async () => {
+  container = document.createElement("div"); document.body.append(container); root = createRoot(container);
+  let calls = 0;
+  await act(async () => root.render(createElement(TaskCreator, {
+    tasks: [], disabled: false, onAnalyze: async () => { calls++; return extraction(); }, onSaveTask: async () => { throw new Error("Must not save automatically"); },
+  })));
+  assert.equal(query('[role="tab"][aria-selected="true"]').textContent, "Paste Screenshot");
+  assert.match(container.textContent!, /Paid screenshot analysis is disabled/);
+  assert.match(container.textContent!, /No analysis request is sent/);
+  await paste(); assert.ok(query('img[alt="Screenshot preview"]'));
+  const disabledButton = button("Screenshot analysis disabled");
+  assert.equal(disabledButton.disabled, true);
+  assert.ok(document.getElementById(disabledButton.getAttribute("aria-describedby")!));
+  await act(async () => disabledButton.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+  assert.equal(calls, 0); assert.equal(container.querySelector("form"), null);
+});
+
+test("paused analysis preserves local previews and a focused manual-entry path with explicit saving", async () => {
+  const { analyzed, saved } = await mount({ analysisEnabled: false, initialFiles: [file()] });
+  assert.ok(query('img[alt="Screenshot preview"]'));
+  await click(button("Screenshot analysis disabled"));
+  assert.equal(analyzed.length, 0); assert.equal(saved.length, 0);
+  await click(button("Use Manual Entry"));
+  assert.equal(document.activeElement, button("Manual Entry"));
+  assert.equal(query('[role="tab"][aria-selected="true"]').textContent, "Manual Entry");
+  assert.equal(query<HTMLFieldSetElement>("fieldset").disabled, false);
+  await setValue("name", "Manually reviewed deadline"); await setValue("dueAt", "2027-01-15T17:00");
+  assert.equal(saved.length, 0);
+  await submit(); assert.equal(saved.length, 1); assert.equal(saved[0].name, "Manually reviewed deadline");
+  assert.equal(analyzed.length, 0);
+  await click(button("Paste Screenshot")); await upload();
+  assert.ok(query('img[alt="Screenshot preview"]')); assert.equal(button("Screenshot analysis disabled").disabled, true);
+  assert.equal(analyzed.length, 0);
+});
 
 test("screenshot tab defaults on; Ctrl+V previews locally; ordinary text-field pasting is untouched", async () => {
   const { analyzed, saved } = await mount();

@@ -14,7 +14,7 @@ const STORAGE_KEY = "deadline-desk.tasks.v1";
 const control = "control";
 const button = "button-primary";
 
-export default function Dashboard({ user, timezone }: { user: { id: string; email: string }; timezone: string }) {
+export default function Dashboard({ user, timezone, screenshotAnalysisEnabled = false }: { user: { id: string; email: string }; timezone: string; screenshotAnalysisEnabled?: boolean }) {
   const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [ready, setReady] = useState(false);
@@ -88,7 +88,7 @@ export default function Dashboard({ user, timezone }: { user: { id: string; emai
 
   async function analyzeScreenshot(file: File, signal: AbortSignal) {
     const body = new FormData(); body.set("image", file);
-    const result = await apiRequest("/api/tasks/extract-image", { method: "POST", body, signal: AbortSignal.any([signal, AbortSignal.timeout(45000)]) });
+    const result = await apiRequest("/api/tasks/extract-image", { method: "POST", headers: { "X-Extraction-Id": crypto.randomUUID() }, body, signal: AbortSignal.any([signal, AbortSignal.timeout(45000)]) });
     const extraction = result.extraction;
     if (!extraction || !validCalendarDate(extraction.referenceDate) || !validTimezone(extraction.referenceTimezone)) throw new Error("Could not validate the detected task details.");
     return parseExtraction({ candidates: extraction.candidates, notes: extraction.notes }, extraction.referenceDate, extraction.referenceTimezone);
@@ -192,7 +192,7 @@ export default function Dashboard({ user, timezone }: { user: { id: string; emai
 
   return <WorkspaceShell email={user.email} tasks={tasks} ready={ready} saving={saving} hasError={Boolean(storageError)} now={now}
     category={category} onCategoryChange={setCategory} onSignOut={() => void signOut()}
-    renderCreator={(onBusyChange, initialFiles) => <TaskCreator tasks={tasks} disabled={!ready || saving} timezone={timezone} onAnalyze={analyzeScreenshot} onSaveTask={saveCreatedTask} onBusyChange={onBusyChange} initialFiles={initialFiles} />}
+    renderCreator={(onBusyChange, initialFiles) => <TaskCreator tasks={tasks} disabled={!ready || saving} analysisEnabled={screenshotAnalysisEnabled} timezone={timezone} onAnalyze={analyzeScreenshot} onSaveTask={saveCreatedTask} onBusyChange={onBusyChange} initialFiles={initialFiles} />}
     settings={<section className="settings-section">
       <h3>Calendar imports</h3><p className="mb-5">Connect a private Canvas or Gradescope ICS feed. Import again to refresh deadlines and keep your statuses. New Canvas assignments start today.</p>
       <form onSubmit={importFeed} className="space-y-4 text-sm text-slate-300">

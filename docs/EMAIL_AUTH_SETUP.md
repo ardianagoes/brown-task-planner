@@ -1,8 +1,17 @@
 # Email authentication: production setup and verification
 
-Production origin: `https://brown-task-planner.vercel.app`.
+Production origin: `https://due-drop.vercel.app`.
 Apply these hosted settings manually; repository changes cannot edit your Supabase
 email templates, Site URL or Vercel environment. No SQL migration is required.
+
+**Canonical URL review (November 10, 2026):** the former
+`https://brown-task-planner.vercel.app` redirects to the confirmed working DueDrop
+origin. However, credential-free callbacks on DueDrop currently redirect back to
+the former host, indicating stale canonical-origin configuration. This can conflict
+with strict mutation Origin checks. Review/approve the Production and Preview
+`NEXT_PUBLIC_APP_URL`, Supabase Site URL and redirect entries below, then redeploy.
+No hosted authentication setting was changed by this rebrand. Keep the old domain
+redirect while older email links exist, and request fresh links after configuration.
 
 ## Why the old links failed
 
@@ -29,23 +38,28 @@ that actively submits forms could still do so. Request a fresh link if one is us
 In the existing project's **Settings → Environment Variables**, set Production:
 
 ```dotenv
-NEXT_PUBLIC_APP_URL=https://brown-task-planner.vercel.app
-AUTH_RECOVERY_SECRET=<a newly generated random secret>
+NEXT_PUBLIC_APP_URL=https://due-drop.vercel.app
+SCREENSHOT_AI_ENABLED=false
 ```
 
-Generate a 64-character hex secret locally, then paste it only into private server
-environment settings (and your ignored `.env.local` for local testing):
+Do not add a trailing slash, path or quotation marks to the app URL in the dashboard.
+Keep `APP_TIMEZONE=America/New_York`. Keep the existing Supabase project URL,
+publishable key, `AUTH_RECOVERY_SECRET`, OpenAI key and model unchanged. **Do not
+generate, replace or rotate production secrets for this domain correction.** A
+missing recovery secret is a separate setup issue; do not silently create one as
+part of this checklist. No service-role key is used.
 
-```sh
-node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
-```
+In **Settings → Domains**, confirm `due-drop.vercel.app` belongs to this existing
+project's Production deployment. Preserve the former-domain redirect while older
+email links exist. Do not rename/recreate the Vercel project or Supabase project.
 
-Do not put the generated value in source control, a `NEXT_PUBLIC_` variable or
-logs. Use one stable value for all production instances/deployments. Rotating it
-invalidates outstanding recovery grants, so users need fresh recovery links.
-Existing Supabase URL/publishable-key settings stay in place. No service-role key
-is used. Redeploy this branch after setting variables; public variables are built
-into browser code. Use separate preview environment settings for preview origins.
+Changes above are operator instructions, not settings applied by this PR. After
+approval and merge, redeploy Production for the public app URL to enter browser
+assets. Do not enable paid AI: retain `SCREENSHOT_AI_ENABLED=false` (missing also
+defaults off). Use separate Preview settings with the exact approved HTTPS preview
+origin; do not copy a production origin into an interactive preview or add broad
+wildcards to work around strict Origin checks. Local `.env.local` stays
+`NEXT_PUBLIC_APP_URL=http://127.0.0.1:3000` with paid AI disabled.
 
 Recovery verification issues a signed 30-minute HttpOnly grant bound to the verified
 user and JWT session ID. This is necessary because successful hash verification
@@ -61,16 +75,16 @@ Go to **Authentication → URL Configuration**.
 Set **Site URL** exactly to:
 
 ```text
-https://brown-task-planner.vercel.app
+https://due-drop.vercel.app
 ```
 
 Add these exact **Redirect URLs** (no production wildcard):
 
 ```text
-https://brown-task-planner.vercel.app/auth/confirm
-https://brown-task-planner.vercel.app/auth/callback
-https://brown-task-planner.vercel.app/auth/callback?next=/auth/reset
-https://brown-task-planner.vercel.app/auth/reset
+https://due-drop.vercel.app/auth/confirm
+https://due-drop.vercel.app/auth/callback
+https://due-drop.vercel.app/auth/callback?next=/auth/reset
+https://due-drop.vercel.app/auth/reset
 ```
 
 The callback entries retain compatibility with current signup/reset/magic API
@@ -106,7 +120,7 @@ inside the HTML `href`; the browser interprets it as the query separator `&`.
 **Magic Link**:
 
 ```html
-<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email">Sign in to Deadline Desk</a>
+<a href="{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&amp;type=email">Sign in to DueDrop</a>
 ```
 
 **Confirm Signup**:
@@ -135,7 +149,7 @@ need the original browser's verifier; their URLs cannot be retroactively repaire
 
 ## 4. Vercel Deployment Protection
 
-Read-only anonymous checks on October 29, 2026 reached production `/login` (200),
+Read-only anonymous checks on November 9, 2026 reached production `/login` (200),
 `/auth/confirm` and `/auth/callback` (application redirects when missing credentials).
 No Vercel authentication wall was observed on those canonical routes. Project
 protection settings were not available for inspection and were not changed.

@@ -19,6 +19,7 @@ export type Database = {
       import_tasks: { Args: { p_tasks: Json }; Returns: number };
       migrate_browser_tasks: { Args: { p_tasks: Json; p_key: string }; Returns: Json };
       consume_import_slot: { Args: Record<string, never>; Returns: Json };
+      reserve_screenshot: { Args: { p_ip_hash: string; p_request_id: string }; Returns: Json };
     };
     Enums: { [_ in never]: never };
     CompositeTypes: { [_ in never]: never };
